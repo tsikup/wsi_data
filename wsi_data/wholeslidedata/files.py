@@ -34,7 +34,7 @@ class MultiResWholeSlideImageFile(WholeSlideFile, ImageFile):
 
     def open(
         self,
-        cell_graph_extractor: str = "resnet34",
+        cell_graph_extractor: str = None,
         cell_graph_image_normalizer: str = "vahadane",
     ):
         return MultiResWholeSlideImage(

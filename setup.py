@@ -1,10 +1,9 @@
-import sys
 from setuptools import setup
 
 setup(
     name="wsi_data",
     version="0.1.0",
-    packages=[""],
+    packages=["wsi_data", "wsi_data.wholeslidedata"],
     url="https://github.com/tsikup/wsi_data",
     license="MIT",
     author="Nikos Tsiknakis",
@@ -23,9 +22,7 @@ setup(
         "shapely",
         "torch",
         "torchvision",
-        "topk",
         "albumentations",
         "wholeslidedata",
-    ]
-    + (["spams"] if sys.platform == "darwin" else ["spams-bin"]),
+    ],
 )
