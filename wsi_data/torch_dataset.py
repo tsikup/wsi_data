@@ -137,8 +137,8 @@ class Single_WSI_Dataset(Dataset):
         annotation = self.annotations[i]
         if self.multires:
             data = self.wsi.get_data(
-                x=annotation.center[0],
-                y=annotation.center[1],
+                x=annotation[0],
+                y=annotation[1],
                 width=self.tile_size,
                 height=self.tile_size,
                 spacings=self.spacing,
@@ -159,8 +159,8 @@ class Single_WSI_Dataset(Dataset):
             return x_target, x_context
         else:
             data = self.wsi.get_patch(
-                x=annotation.center[0],
-                y=annotation.center[1],
+                x=annotation[0],
+                y=annotation[1],
                 width=self.tile_size,
                 height=self.tile_size,
                 spacing=self.spacing,
