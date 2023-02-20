@@ -23,7 +23,8 @@ class Single_WSI_Dataset(Dataset):
     def collate_fn(batch):
         batch = list(filter(lambda x: x is not None, batch))
         if len(batch) == 0:
-            return []
+            # return []
+            batch = [torch.zeros(512, 512, 3)]
         return torch.utils.data.dataloader.default_collate(batch)
 
     def __init__(
