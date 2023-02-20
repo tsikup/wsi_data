@@ -45,7 +45,8 @@ class Single_WSI_Dataset(Dataset):
         self.image_name = image_file.path.stem
         self.annotations = [ann.center for ann in annotations]
         self.dataset_size = len(annotations)
-        self.wsi = image_file.open()
+        self.image_file = image_file
+        self.wsi = None
 
         self.tile_size = tile_size
         self.spacing = spacing
@@ -129,11 +130,17 @@ class Single_WSI_Dataset(Dataset):
 
         return patch
 
+    def open_wsi(self):
+        self.wsi = self.image_file.open()
+
     def __getitem__(self, i):
         """
         :param i: The index of the item to be returned
         :return: A tuple of (target, context) patches if multiresolution is True, otherwise a single patch.
         """
+        if self.wsi is None:
+            self.open_wsi()
+
         annotation = self.annotations[i]
         if self.multires:
             data = self.wsi.get_data(
