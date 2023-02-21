@@ -31,9 +31,6 @@ class MultiResPatchSampler:
         size,
         pixel_spacings,
     ):
-        assert isinstance(
-            pixel_spacings, dict
-        ), "pixel_spacings should be a dictionary with the spacings for 'context', 'target', 'graph' and 'details'"
         image_opened = isinstance(image, MultiResWholeSlideImage)
 
         if not image_opened:
@@ -48,8 +45,6 @@ class MultiResPatchSampler:
             pixel_spacings,
             center=self._center,
             relative=self._relative,
-            tissue_percentage=self.tissue_percentage,
-            blurriness_threshold=self.blurriness_threshold
         )
 
         ratio = dict()

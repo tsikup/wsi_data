@@ -95,7 +95,13 @@ class MultiResWholeSlideImage(WholeSlideImage):
             # Total iterations over the y-axis to get all detail patches
             total_j = int(height / details_height)
 
-            return num_details_patches, total_i, total_j
+            return (
+                num_details_patches,
+                total_i,
+                total_j,
+                downsampling_target,
+                downsampling_details,
+            )
         return None, None, None
 
     def get_data(
@@ -124,6 +130,8 @@ class MultiResWholeSlideImage(WholeSlideImage):
             np.ndarray: numpy patch
         """
 
+        assert isinstance(spacings, dict), "Spacings must be a dictionary"
+
         _spacings = spacings.copy()
 
         data = dict()
@@ -149,9 +157,13 @@ class MultiResWholeSlideImage(WholeSlideImage):
         if "details" in _spacings:
             x_details = []
 
-            num_details_patches, total_i, total_j = self.get_num_details(
-                width, height, _spacings
-            )
+            (
+                num_details_patches,
+                total_i,
+                total_j,
+                downsampling_target,
+                downsampling_details,
+            ) = self.get_num_details(width, height, _spacings)
 
             if center:
                 # Get top left coords of target resolution
@@ -160,12 +172,12 @@ class MultiResWholeSlideImage(WholeSlideImage):
                 )
                 x, y = x - downsampling * (width // 2), y - downsampling * (height // 2)
 
-            for idx in range(self.num_details_patches):
-                i = int(idx // self.total_i)
-                j = int(idx % self.total_j)
+            for idx in range(num_details_patches):
+                i = int(idx // total_i)
+                j = int(idx % total_j)
 
-                rel_coord_x = j * self.details_size * self.downsampling_target
-                rel_coord_y = i * self.details_size * self.downsampling_target
+                rel_coord_x = j * width * downsampling_target
+                rel_coord_y = i * height * downsampling_target
 
                 coord_x = x + rel_coord_x
                 coord_y = y + rel_coord_y
