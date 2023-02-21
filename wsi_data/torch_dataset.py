@@ -1,7 +1,4 @@
 import torch
-import openslide
-import numpy as np
-from pathlib import Path
 from torch.utils.data import Dataset
 from typing import Dict, Union, List
 from torchvision import transforms as T
@@ -17,6 +14,7 @@ from wsi_data import MultiResWholeSlideImageFile
 class Single_WSI_Dataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
+    This class is used to create a dataset for a single WSI based on wholeslidedata package annotations.
     """
 
     @staticmethod
@@ -152,18 +150,19 @@ class Single_WSI_Dataset(Dataset):
                 center=True,
             )
 
-            x_target, x_context = self._preprocess(
-                data["target"],
-                blurriness_threshold=self.blurriness_threshold["target"],
-                tissue_percentage=self.tissue_percentage,
-            ), self._preprocess(
-                data["context"],
-                blurriness_threshold=self.blurriness_threshold["context"],
-                tissue_percentage=None,
-            )
-            if x_target is None:
-                return None
-            return x_target, x_context
+            o_data = []
+            for key in data.keys():
+                if key == "target" and data[key] is None:
+                    return None
+                o_data.append(
+                    self._preprocess(
+                        data[key],
+                        blurriness_threshold=self.blurriness_threshold[key],
+                        tissue_percentage=self.tissue_percentage,
+                    )
+                )
+
+            return tuple(o_data)
         else:
             data = self.wsi.get_patch(
                 x=annotation[0],
