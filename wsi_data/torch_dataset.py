@@ -19,7 +19,8 @@ class Single_WSI_Dataset(Dataset):
 
     @staticmethod
     def collate_fn(batch):
-        batch = list(filter(lambda x: x is not None, batch))
+        key = "target"
+        batch = list(filter(lambda x: x[key] is not None, batch))
         if len(batch) == 0:
             return []
         return torch.utils.data.dataloader.default_collate(batch)
@@ -33,7 +34,7 @@ class Single_WSI_Dataset(Dataset):
         transform: Union[T.Compose, None] = None,
         filters2apply: Union[dict, None] = None,
         blurriness_threshold: Union[dict, int, None] = None,
-        tissue_percentage: float = 0.5,
+        tissue_percentage: Union[dict, int, None] = None,
         constant_pad_value: int = 230,
     ):
         """
@@ -150,19 +151,17 @@ class Single_WSI_Dataset(Dataset):
                 center=True,
             )
 
-            o_data = []
+            o_data = dict()
             for key in data.keys():
-                if key == "target" and data[key] is None:
-                    return None
-                o_data.append(
-                    self._preprocess(
-                        data[key],
-                        blurriness_threshold=self.blurriness_threshold[key],
-                        tissue_percentage=self.tissue_percentage,
-                    )
+                o_data[key] = self._preprocess(
+                    data[key],
+                    blurriness_threshold=self.blurriness_threshold[key],
+                    tissue_percentage=self.tissue_percentage[key],
                 )
+                if key == "target" and o_data[key] is None:
+                    return dict.fromkeys(self.spacing.keys(), None)
 
-            return tuple(o_data)
+            return o_data
         else:
             data = self.wsi.get_patch(
                 x=annotation[0],
@@ -173,8 +172,10 @@ class Single_WSI_Dataset(Dataset):
                 center=True,
             )
 
-            return self._preprocess(
-                data,
-                blurriness_threshold=self.blurriness_threshold,
-                tissue_percentage=self.tissue_percentage,
-            )
+            return {
+                "target": self._preprocess(
+                    data,
+                    blurriness_threshold=self.blurriness_threshold,
+                    tissue_percentage=self.tissue_percentage,
+                )
+            }
