@@ -14,15 +14,11 @@ class MultiResWholeSlideDataSet(DataSet):
         mode,
         associations: Associations,
         labels: Labels = None,
-        cell_graph_extractor: str = None,
-        cell_graph_image_normalizer="vahadane",
         load_images=True,
         copy_path=None,
     ):
         self._load_images = load_images
         self._copy_path = copy_path
-        self._cell_graph_extractor = cell_graph_extractor
-        self._cell_graph_image_normalizer = cell_graph_image_normalizer
         super().__init__(mode, associations, labels)
 
     def _open(self, associations, labels):
@@ -51,10 +47,7 @@ class MultiResWholeSlideDataSet(DataSet):
         if self._copy_path:
             wsi_file.copy(self._copy_path)
         if self._load_images:
-            return wsi_file.open(
-                cell_graph_extractor=self._cell_graph_extractor,
-                cell_graph_image_normalizer=self._cell_graph_image_normalizer,
-            )
+            return wsi_file.open()
         return wsi_file
 
     def _open_annotation(self, wsa_file: WholeSlideAnnotationFile, labels):

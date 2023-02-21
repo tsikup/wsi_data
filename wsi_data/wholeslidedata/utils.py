@@ -114,11 +114,7 @@ def create_batch_sampler(
 
     if file_type == "mrwsi":
         dataset = MultiResWholeSlideDataSet(
-            mode="default",
-            associations=associations,
-            labels=list(labels.keys()),
-            cell_graph_extractor="resnet34" if "graph" in spacing else None,
-            cell_graph_image_normalizer="vahadane",
+            mode="default", associations=associations, labels=list(labels.keys())
         )
     else:
         dataset = WholeSlideDataSet(
