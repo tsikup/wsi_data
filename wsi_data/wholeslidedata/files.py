@@ -32,14 +32,8 @@ class MultiResWholeSlideImageFile(WholeSlideFile, ImageFile):
             copy_source(folder, destination_folder)
         super().copy(destination_folder=destination_folder)
 
-    def open(
-        self,
-        cell_graph_extractor: str = None,
-        cell_graph_image_normalizer: str = "vahadane",
-    ):
+    def open(self):
         return MultiResWholeSlideImage(
             self.path,
             self._image_backend,
-            cell_graph_extractor=cell_graph_extractor,
-            cell_graph_image_normalizer=cell_graph_image_normalizer,
         )

@@ -8,7 +8,6 @@ from wholeslidedata.image.wholeslideimage import WholeSlideImage
 from wholeslidedata.annotation import utils as annotation_utils
 
 from .annotation_parser import QuPathAnnotationParser
-from pytorch_models.data_helpers.graphs import CellGraphExtractor
 import he_preprocessing.utils.image as ut_image
 
 
@@ -19,11 +18,8 @@ class MultiResWholeSlideImage(WholeSlideImage):
         backend: Union[WholeSlideImageBackend, str] = "openslide",
         annotation_path=None,
         labels=None,
-        cell_graph_extractor=None,
-        cell_graph_image_normalizer="vahadane",
     ):
         super(MultiResWholeSlideImage, self).__init__(path=path, backend=backend)
-        self.extract_graph = cell_graph_extractor is not None
 
         self.annotation = None
         if annotation_path:
@@ -32,12 +28,6 @@ class MultiResWholeSlideImage(WholeSlideImage):
                 annotation_path=annotation_path,
                 labels=labels,
                 parser=self._annotation_parser,
-            )
-
-        if cell_graph_extractor is not None:
-            self.cg_extractor = CellGraphExtractor(
-                feature_extractor=cell_graph_extractor,
-                stain_norm=cell_graph_image_normalizer,
             )
 
     @property
@@ -117,8 +107,6 @@ class MultiResWholeSlideImage(WholeSlideImage):
         spacings: Dict[str, float],
         center: bool = True,
         relative: bool = False,
-        tissue_percentage: float = None,
-        blurriness_threshold: Dict[str, int] = None,
     ) -> Union[
         dict[str, Union[ndarray, ndarray, list[Union[ndarray, ndarray]]]],
         dict[str, Union[ndarray, ndarray]],
@@ -131,105 +119,30 @@ class MultiResWholeSlideImage(WholeSlideImage):
             height (int): height of region
             spacings (list of float): spacing/resolution of the patch at target, context and details level
             center (bool, optional): if x,y values are centres or top left coordinated. Defaults to True.
-            relative (bool, optional): if x,y values are a reference to the dimensions of the specified spacing.
-                                       Defaults to False.
-            tissue_percentage (int): if target image has tissue percentage lower than that, discard
-            blurriness_threshold (dict): thresholds to detect if target or context image are blurry
+            relative (bool, optional): if x,y values are a reference to the dimensions of the specified spacing. Defaults to False.
         Returns:
             np.ndarray: numpy patch
         """
 
-        assert "target" in spacings and (
-            "context" in spacings or "graph" in spacings or "details" in spacings
-        ), (
-            "Spacings should be a dict with the following keys: 'target', 'context' (optional), 'graph' (optional), "
-            "'details' (optional), "
-        )
-
         _spacings = spacings.copy()
+
+        data = dict()
 
         for key, value in _spacings.items():
             _spacings[key] = self.get_real_spacing(value)
 
-        # Target
-        x_target = self.get_patch(
-            x,
-            y,
-            width,
-            height,
-            spacing=_spacings["target"],
-            center=center,
-            relative=relative,
-        )
-
-        # Context
-        x_context = self.get_patch(
-            x,
-            y,
-            width,
-            height,
-            spacing=_spacings["context"],
-            center=center,
-            relative=relative,
-        )
-
-        # Graph
-        x_graph = None
-        cell_graph = None
-        if self.extract_graph:
-            # Possibly discard if blurry or not enough tissue to save time from graph computation
-            if (
-                (
-                    tissue_percentage is None
-                    or ut_image.keep_tile(
-                        x_target,
-                        width,
-                        tissue_threshold=tissue_percentage,
-                        roi_mask=None,
-                        pad=True,
-                    )
-                )
-                and (
-                    blurriness_threshold["target"] is None
-                    or (
-                        not ut_image.is_blurry(
-                            x_target,
-                            threshold=blurriness_threshold["target"],
-                            normalize=True,
-                            verbose=0,
-                        )
-                    )
-                )
-                and (
-                    blurriness_threshold["context"] is None
-                    or (
-                        not ut_image.is_blurry(
-                            x_context,
-                            threshold=blurriness_threshold["context"],
-                            normalize=True,
-                            verbose=0,
-                        )
-                    )
-                )
-            ):
-                # Image to build graph on
-                x_graph = self.get_patch(
-                    x,
-                    y,
-                    width=int(width * _spacings["target"] / _spacings["graph"]),
-                    height=int(height * _spacings["target"] / _spacings["graph"]),
-                    spacing=_spacings["graph"],
-                    center=center,
-                    relative=relative,
-                )
-                try:
-                    cell_graph = self.cg_extractor.process(x_graph)
-                except ValueError:
-                    cell_graph = None
-            else:
-                print(
-                    "Target tile doesn't contain enough tissue or it's blurry. Don't extract cell graph."
-                )
+        for key, spacing in _spacings.items():
+            if key == "details":
+                continue
+            data[key] = self.get_patch(
+                x,
+                y,
+                width,
+                height,
+                spacing=spacing,
+                center=center,
+                relative=relative,
+            )
 
         # Details
         x_details = None
@@ -268,12 +181,6 @@ class MultiResWholeSlideImage(WholeSlideImage):
                     )
                 )
 
-        out = {
-            "target": x_target,
-            "details": x_details,
-            "context": x_context,
-            "graph_image": x_graph,
-            "graph": cell_graph,
-        }
+            data["details"] = x_details
 
-        return {k: v for k, v in out.items() if v is not None}
+        return data
