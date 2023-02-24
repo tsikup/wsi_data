@@ -155,8 +155,12 @@ class Single_WSI_Dataset(Dataset):
             for key in data.keys():
                 o_data[key] = self._preprocess(
                     data[key],
-                    blurriness_threshold=self.blurriness_threshold[key],
-                    tissue_percentage=self.tissue_percentage[key],
+                    blurriness_threshold=self.blurriness_threshold[key]
+                    if self.blurriness_threshold is not None
+                    else None,
+                    tissue_percentage=self.tissue_percentage[key]
+                    if self.tissue_percentage is not None
+                    else None,
                 )
                 if key == "target" and o_data[key] is None:
                     return dict.fromkeys(self.spacing.keys(), None)
