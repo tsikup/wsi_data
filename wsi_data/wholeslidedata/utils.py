@@ -280,3 +280,55 @@ def draw_relative_annotations(
     #     ax.axis("equal")
     #     ax.set_title(title)
     return _image
+
+
+def get_files(
+    slides_dir,
+    annotations_dir,
+    tile_size,
+    labels,
+    stride_overlap_percentage,
+    intersection_percentage,
+    ratio=1,
+    file_type="mrwsi",
+    slide_extension=".ndpi",
+    ann_extension=".geojson",
+):
+    if ann_extension == ".geojson":
+        parser = QuPathAnnotationParser
+    else:
+        parser = AnnotationParser
+    parser = parser(
+        labels=labels,
+        hooks=(
+            MaskedTiledAnnotationHook(
+                tile_size=tile_size,
+                label_names=list(labels.keys()),
+                ratio=ratio,
+                overlap=int(tile_size * stride_overlap_percentage),
+                intersection_percentage=intersection_percentage,
+                full_coverage=True,
+            ),
+        ),
+    )
+
+    image_files = whole_slide_files_from_folder_factory(
+        slides_dir,
+        file_type,
+        excludes=[
+            "mask",
+        ],
+        filters=[
+            slide_extension,
+        ],
+        image_backend="openslide",
+    )
+
+    annotation_files = whole_slide_files_from_folder_factory(
+        annotations_dir,
+        "wsa",
+        excludes=["tif"],
+        filters=[ann_extension],
+        annotation_parser=parser,
+    )
+    return image_files, annotation_files
