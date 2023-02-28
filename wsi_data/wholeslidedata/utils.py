@@ -220,6 +220,37 @@ def get_annotation_mask(
     )
 
 
+def draw_tiles(
+    image: Image.Image,
+    annotation_centers: List[List[int]],
+    tile_size: int,
+    outline_color=(255, 0, 0),
+    fill_color=None,
+    width=3,
+    spacings_ratio=1.0,
+    view_scale=1.0,
+):
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+
+    _image = image.copy()
+    draw = ImageDraw.Draw(_image)
+
+    tile_size = int(tile_size * view_scale)
+
+    for center in annotation_centers:
+        x = int(center[0] * spacings_ratio * view_scale) - tile_size // 2
+        y = int(center[1] * spacings_ratio * view_scale) - tile_size // 2
+        draw.rectangle(
+            [x, y, x + tile_size, y + tile_size],
+            outline=outline_color,
+            fill=fill_color,
+            width=width,
+        )
+
+    return _image
+
+
 def draw_relative_annotations(
     image: Image.Image,
     annotations: List[Annotation],
@@ -283,52 +314,63 @@ def draw_relative_annotations(
 
 
 def get_files(
-    slides_dir,
-    annotations_dir,
-    tile_size,
-    labels,
-    stride_overlap_percentage,
-    intersection_percentage,
+    slides_dir=None,
+    annotations_dir=None,
+    tile_size=512,
+    labels=None,
+    stride_overlap_percentage=0.0,
+    intersection_percentage=1.0,
     ratio=1,
     file_type="mrwsi",
     slide_extension=".ndpi",
     ann_extension=".geojson",
+    tiled=True,
 ):
-    if ann_extension == ".geojson":
-        parser = QuPathAnnotationParser
-    else:
-        parser = AnnotationParser
-    parser = parser(
-        labels=labels,
-        hooks=(
-            MaskedTiledAnnotationHook(
-                tile_size=tile_size,
-                label_names=list(labels.keys()),
-                ratio=ratio,
-                overlap=int(tile_size * stride_overlap_percentage),
-                intersection_percentage=intersection_percentage,
-                full_coverage=True,
+    image_files = None
+    annotation_files = None
+
+    if slides_dir is not None:
+        image_files = whole_slide_files_from_folder_factory(
+            slides_dir,
+            file_type,
+            excludes=[
+                "mask",
+            ],
+            filters=[
+                slide_extension,
+            ],
+            image_backend="openslide",
+        )
+
+    if annotations_dir is not None:
+        if labels is None:
+            labels = {"tissue": 1}
+        if ann_extension == ".geojson":
+            parser = QuPathAnnotationParser
+        else:
+            parser = AnnotationParser
+        parser = parser(
+            labels=labels,
+            hooks=(
+                MaskedTiledAnnotationHook(
+                    tile_size=tile_size,
+                    label_names=list(labels.keys()),
+                    ratio=ratio,
+                    overlap=int(tile_size * stride_overlap_percentage),
+                    intersection_percentage=intersection_percentage,
+                    full_coverage=True,
+                )
+                if tiled
+                else None,
             ),
-        ),
-    )
+        )
 
-    image_files = whole_slide_files_from_folder_factory(
-        slides_dir,
-        file_type,
-        excludes=[
-            "mask",
-        ],
-        filters=[
-            slide_extension,
-        ],
-        image_backend="openslide",
-    )
+        annotation_files = whole_slide_files_from_folder_factory(
+            annotations_dir,
+            "wsa",
+            excludes=["tif"],
+            filters=[ann_extension],
+            annotation_parser=parser,
+        )
 
-    annotation_files = whole_slide_files_from_folder_factory(
-        annotations_dir,
-        "wsa",
-        excludes=["tif"],
-        filters=[ann_extension],
-        annotation_parser=parser,
-    )
     return image_files, annotation_files
