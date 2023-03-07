@@ -67,6 +67,11 @@ class MultiResWholeSlideImage(WholeSlideImage):
             return_contours=return_contours,
         )
 
+    def get_thumbnail(self, spacing=8):
+        spacing = self.get_real_spacing(spacing)
+        downsample = self.get_downsampling_from_spacing(spacing)
+        return self.get_slide(spacing=spacing), spacing, downsample
+
     def get_num_details(self, width: int, height: int, spacings: Dict[str, float]):
         if "details" in spacings:
             downsampling_target = self.get_downsampling_from_spacing(
