@@ -117,17 +117,20 @@ class MultiResWholeSlideImage(WholeSlideImage):
     ) -> Union[tuple[int, bool], int]:
         closest_level = take_closest_level(self._spacings, spacing)
         spacing_margin = spacing * WholeSlideImage.SPACING_MARGIN
+        rescale = False
 
         if abs(self.spacings[closest_level] - spacing) > spacing_margin:
+            if self.spacings[closest_level] > spacing:
+                closest_level -= 1
+            rescale = True
             warnings.warn(
-                f"spacing {spacing} outside margin (0.3%) for {self._spacings}, returning highest resolution spacing: {self._spacings[0]}."
+                f"spacing {spacing} outside margin (0.3%) for {self._spacings}, returning left bisected spacing."
             )
-            if return_rescaling:
-                return 0, True
-            return 0
+
+        closest_level = max(closest_level, 0)
 
         if return_rescaling:
-            return closest_level, False
+            return closest_level, rescale
         return closest_level
 
     def get_real_spacing(self, spacing, return_rescaling: bool = False):
