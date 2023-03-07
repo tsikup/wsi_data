@@ -184,7 +184,7 @@ class MultiResWholeSlideImage(WholeSlideImage):
                 continue
 
             if _rescale[key]:
-                _scaling_factor = int(_original_spacing[key] / spacing)
+                _scaling_factor = _original_spacing[key] / spacing
                 assert _scaling_factor > 1, "Scaling factor must be > 1"
 
                 _width = int(width * _scaling_factor)
@@ -293,7 +293,7 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
         _spacing, _rescale = self.get_real_spacing(spacing, return_rescaling=True)
 
         if _rescale:
-            _scaling_factor = int(_original_spacing / spacing)
+            _scaling_factor = _original_spacing / _spacing
             assert _scaling_factor > 1, "Scaling factor must be > 1"
 
             _width = int(width * _scaling_factor)
@@ -307,7 +307,7 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
             y,
             _width,
             _height,
-            spacing=spacing,
+            spacing=_spacing,
             center=center,
             relative=relative,
         )
@@ -320,11 +320,19 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
 
 if __name__ == "__main__":
     wsi = MultiResWholeSlideImage(
-        "/Volumes/MyPassport/PhD/Cohorts/TCGA/SlidesPerPatient/TCGA-BH-A18H/TCGA-BH-A18H-01Z-00-DX1.4EC9108F-04C2-4B28-BD74-97A414C9A536.svs"
+        "/Volumes/MyPassport/PhD/Cohorts/TCGA/SlidesPerPatient/TCGA-A8-A07C/TCGA-A8-A07C-01Z-00-DX1.1F069BCA-D2B3-49CF-81FD-9EBA49A3439F.svs"
     )
+
     data = wsi.get_data(
-        85000, 45000, 512, 512, {"target": 0.5, "context": 2.0, "10x": 1.0}
+        29000, 17000, 512, 512, {"target": 0.5, "context": 2.0, "10x": 1.0}
     )
     print(data["target"].shape)
     print(data["context"].shape)
     print(data["10x"].shape)
+
+    wsi = MyWholeSlideImage(
+        "/Volumes/MyPassport/PhD/Cohorts/TCGA/SlidesPerPatient/TCGA-A8-A07C/TCGA-A8-A07C-01Z-00-DX1.1F069BCA-D2B3-49CF-81FD-9EBA49A3439F.svs"
+    )
+
+    data = wsi.get_data(29000, 17000, 512, 512, 0.5)
+    print(data.shape)
