@@ -1,13 +1,16 @@
+import cv2
+import warnings
 import numpy as np
 from pathlib import Path
 from typing import Union, Dict
 from numpy import ndarray
 from wholeslidedata import WholeSlideAnnotation
 from wholeslidedata.image.backend import WholeSlideImageBackend
+from wholeslidedata.image.utils import take_closest_level
 from wholeslidedata.image.wholeslideimage import WholeSlideImage
 from wholeslidedata.annotation import utils as annotation_utils
 
-from .annotation_parser import QuPathAnnotationParser
+from wsi_data.wholeslidedata.annotation_parser import QuPathAnnotationParser
 import he_preprocessing.utils.image as ut_image
 
 
@@ -104,6 +107,33 @@ class MultiResWholeSlideImage(WholeSlideImage):
             )
         return None, None, None
 
+    def get_level_from_spacing(
+        self, spacing: float, return_rescaling: bool = False
+    ) -> Union[tuple[int, bool], int]:
+        closest_level = take_closest_level(self._spacings, spacing)
+        spacing_margin = spacing * WholeSlideImage.SPACING_MARGIN
+
+        if abs(self.spacings[closest_level] - spacing) > spacing_margin:
+            warnings.warn(
+                f"spacing {spacing} outside margin (0.3%) for {self._spacings}, returning highest resolution spacing: {self._spacings[0]}."
+            )
+            if return_rescaling:
+                return 0, True
+            return 0
+
+        if return_rescaling:
+            return closest_level, False
+        return closest_level
+
+    def get_real_spacing(self, spacing, return_rescaling: bool = False):
+        level_rescaling = self.get_level_from_spacing(
+            spacing, return_rescaling=return_rescaling
+        )
+        if return_rescaling:
+            level, rescale = level_rescaling
+            return self._spacings[level], rescale
+        return self._spacings[level_rescaling]
+
     def get_data(
         self,
         x: int,
@@ -130,31 +160,57 @@ class MultiResWholeSlideImage(WholeSlideImage):
             np.ndarray: numpy patch
         """
 
+        if not isinstance(spacings, dict):
+            assert isinstance(spacings, float) or isinstance(
+                spacings, int
+            ), "Spacings must be a dictionary or float/int for uniresolution patches"
+            spacings = {"target": spacings}
+
         assert isinstance(spacings, dict), "Spacings must be a dictionary"
 
+        _original_spacing = spacings.copy()
         _spacings = spacings.copy()
+        _rescale = dict()
 
         data = dict()
 
         for key, value in _spacings.items():
-            _spacings[key] = self.get_real_spacing(value)
+            _spacings[key], _rescale[key] = self.get_real_spacing(
+                value, return_rescaling=True
+            )
 
         for key, spacing in _spacings.items():
             if key == "details":
                 continue
-            data[key] = self.get_patch(
+
+            if _rescale[key]:
+                _scaling_factor = int(_original_spacing[key] / spacing)
+                assert _scaling_factor > 1, "Scaling factor must be > 1"
+
+                _width = int(width * _scaling_factor)
+                _height = int(height * _scaling_factor)
+            else:
+                _width = width
+                _height = height
+
+            _patch = self.get_patch(
                 x,
                 y,
-                width,
-                height,
+                _width,
+                _height,
                 spacing=spacing,
                 center=center,
                 relative=relative,
             )
 
+            if _rescale[key]:
+                _patch = cv2.resize(_patch, (width, height))
+
+            data[key] = _patch
+
         # Details
         x_details = None
-        if "details" in _spacings:
+        if "details" in _spacings and not _rescale["details"]:
             x_details = []
 
             (
@@ -194,5 +250,81 @@ class MultiResWholeSlideImage(WholeSlideImage):
                 )
 
             data["details"] = x_details
+        elif "details" in _spacings:
+            raise NotImplementedError(
+                "Details extraction with rescaling not implemented yet"
+            )
 
         return data
+
+
+class MyWholeSlideImage(MultiResWholeSlideImage):
+    def get_data(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        spacing: float,
+        center: bool = True,
+        relative: bool = False,
+    ) -> np.ndarray:
+        """Extracts a patch/region from the wholeslideimage
+
+        Args:
+            x (int): x value
+            y (int): y value
+            width (int): width of region
+            height (int): height of region
+            spacing (float): spacing/resolution of the patch
+            center (bool, optional): if x,y values are centres or top left coordinated. Defaults to True.
+            relative (bool, optional): if x,y values are a reference to the dimensions of the specified spacing. Defaults to False.
+
+        Returns:
+            np.ndarray: numpy patch
+        """
+
+        assert isinstance(spacing, float) or isinstance(
+            spacing, int
+        ), "Spacings must be a float or int"
+
+        _original_spacing = spacing
+
+        _spacing, _rescale = self.get_real_spacing(spacing, return_rescaling=True)
+
+        if _rescale:
+            _scaling_factor = int(_original_spacing / spacing)
+            assert _scaling_factor > 1, "Scaling factor must be > 1"
+
+            _width = int(width * _scaling_factor)
+            _height = int(height * _scaling_factor)
+        else:
+            _width = width
+            _height = height
+
+        _patch = self.get_patch(
+            x,
+            y,
+            _width,
+            _height,
+            spacing=spacing,
+            center=center,
+            relative=relative,
+        )
+
+        if _rescale:
+            _patch = cv2.resize(_patch, (width, height))
+
+        return _patch
+
+
+if __name__ == "__main__":
+    wsi = MultiResWholeSlideImage(
+        "/Volumes/MyPassport/PhD/Cohorts/TCGA/SlidesPerPatient/TCGA-BH-A18H/TCGA-BH-A18H-01Z-00-DX1.4EC9108F-04C2-4B28-BD74-97A414C9A536.svs"
+    )
+    data = wsi.get_data(
+        85000, 45000, 512, 512, {"target": 0.5, "context": 2.0, "10x": 1.0}
+    )
+    print(data["target"].shape)
+    print(data["context"].shape)
+    print(data["10x"].shape)

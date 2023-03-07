@@ -15,7 +15,6 @@ from wholeslidedata.samplers.pointsampler import CenterPointSampler
 from wholeslidedata.samplers.samplesampler import SampleSampler
 from wholeslidedata.samplers.structures import BatchShape
 from wholeslidedata.source.associations import associate_files
-from wholeslidedata.source.files import WholeSlideFile
 from wholeslidedata.source.utils import (
     NoSourceFilesInFolderError,
     factory_sources_from_paths,
@@ -25,6 +24,7 @@ from wsi_data import (
     QuPathAnnotationParser,
     MultiResWholeSlideDataSet,
     MultiResWholeSlideImageFile,
+    MyWholeSlideImageFile,
     MaskedTiledAnnotationHook,
     BatchOneTimeReferenceSampler,
     OrderedLabelOneTimeSampler,
@@ -185,7 +185,7 @@ def whole_slide_files_from_folder_factory(
     if file_type == "mrwsi":
         class_type = MultiResWholeSlideImageFile
     else:
-        class_type = WholeSlideFile.get_registrant(file_type)
+        class_type = MyWholeSlideImageFile
     all_sources = []
     folder = Path(folder)
     for extension in class_type.EXTENSIONS.names():

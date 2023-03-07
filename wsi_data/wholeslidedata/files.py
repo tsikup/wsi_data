@@ -8,13 +8,10 @@ from wholeslidedata.mode import Mode
 from wholeslidedata.source.copy import copy as copy_source
 from wholeslidedata.source.files import WholeSlideFile, ImageFile
 
-from .wholeslideimage import MultiResWholeSlideImage
+from .wholeslideimage import MultiResWholeSlideImage, MyWholeSlideImage
 
 
-@WholeSlideFile.register(
-    ("mrwsi", "multires_wsi", "multiresolutionwsi", "multiresolutionwholeslideimage")
-)
-class MultiResWholeSlideImageFile(WholeSlideFile, ImageFile):
+class BaseWholeSlideImageFile(WholeSlideFile, ImageFile):
     EXTENSIONS = WholeSlideImageExtension
 
     def __init__(
@@ -33,7 +30,24 @@ class MultiResWholeSlideImageFile(WholeSlideFile, ImageFile):
         super().copy(destination_folder=destination_folder)
 
     def open(self):
+        raise NotImplementedError
+
+
+@WholeSlideFile.register(
+    ("mrwsi", "multires_wsi", "multiresolutionwsi", "multiresolutionwholeslideimage")
+)
+class MultiResWholeSlideImageFile(BaseWholeSlideImageFile):
+    def open(self):
         return MultiResWholeSlideImage(
+            self.path,
+            self._image_backend,
+        )
+
+
+@WholeSlideFile.register(("mywsi", "mywholeslideimage"))
+class MyWholeSlideImageFile(BaseWholeSlideImageFile):
+    def open(self):
+        return MyWholeSlideImage(
             self.path,
             self._image_backend,
         )

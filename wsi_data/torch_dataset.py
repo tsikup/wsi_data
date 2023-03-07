@@ -8,7 +8,7 @@ from he_preprocessing.filter.filter import apply_filters_to_image
 from he_preprocessing.utils.image import keep_tile, is_blurry, pad_image
 from wholeslidedata.source.files import WholeSlideImageFile
 
-from wsi_data import MultiResWholeSlideImageFile
+from wsi_data import MultiResWholeSlideImageFile, MyWholeSlideImageFile
 
 
 class Single_WSI_Dataset(Dataset):
@@ -27,7 +27,10 @@ class Single_WSI_Dataset(Dataset):
 
     def __init__(
         self,
-        image_file: Union[MultiResWholeSlideImageFile, WholeSlideImageFile],
+        image_file: Union[
+            MultiResWholeSlideImageFile,
+            MyWholeSlideImageFile,
+        ],
         annotations: List[WSDPolygon],
         tile_size: int = 512,
         spacing: Union[Dict[str, float], float] = 0.5,
@@ -167,7 +170,7 @@ class Single_WSI_Dataset(Dataset):
 
             return o_data
         else:
-            data = self.wsi.get_patch(
+            data = self.wsi.get_data(
                 x=annotation[0],
                 y=annotation[1],
                 width=self.tile_size,
