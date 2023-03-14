@@ -1,4 +1,8 @@
+import os
+import re
+import h5py
 import torch
+import albumentations as A
 from torch.utils.data import Dataset
 from typing import Dict, Union, List
 from torchvision import transforms as T
@@ -6,9 +10,92 @@ from wholeslidedata.annotation.structures import Polygon as WSDPolygon
 
 from he_preprocessing.filter.filter import apply_filters_to_image
 from he_preprocessing.utils.image import keep_tile, is_blurry, pad_image
-from wholeslidedata.source.files import WholeSlideImageFile
-
 from wsi_data import MultiResWholeSlideImageFile, MyWholeSlideImageFile
+
+
+def read_h5file(file):
+    return h5py.File(file, "r")
+
+
+class Single_H5_Image_Dataset(Dataset):
+    """
+    A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
+    """
+
+    def __init__(
+        self,
+        h5_file: str = None,
+        image_regex: str = "^x_",
+        transform: Union[A.Compose, None] = None,
+        pytorch_transform: Union[T.Compose, None] = None,
+        channels_last: bool = False,
+    ):
+        """
+        :param data_dir: hdf5 folder
+        :param data_name: hdf5 filename
+        :param transform: image transform pipeline
+        """
+        if isinstance(h5_file, str):
+            assert os.path.exists(h5_file)
+
+        self.h5_file = h5_file
+        self.h5_dataset = None
+        self.images = None
+
+        # Return tensor with channels at last index
+        self.channels_last = channels_last
+
+        # determine dataset length and shape
+        with read_h5file(h5_file) as f:
+            # Total number of datapoints
+            spacings = f.keys()
+            p = re.compile(image_regex)
+            self.data_cols = [s for s in spacings if p.match(s)]
+            self.dataset_size = f[self.data_cols[0]].shape[0]
+            self.image_shape = f[self.data_cols[0]].shape[1:]
+
+        # Albumentations transformation pipeline for the image (normalizing, etc.)
+        self.transform = transform
+        # Pytorch transformation pipeline for the image
+        self.pytorch_transform = pytorch_transform
+
+    def open_hdf5(self):
+        self.h5_dataset = read_h5file(self.h5_file)
+        self.images = dict()
+        for res in self.data_cols:
+            self.images[res] = self.h5_dataset[res]
+
+    def close(self):
+        if self.h5_dataset is not None:
+            self.h5_dataset.close()
+
+    def get_item(self, i):
+        return self.__getitem__(i)
+
+    def __getitem__(self, i):
+        if not hasattr(self, "h5_dataset") or self.h5_dataset is None:
+            self.open_hdf5()
+
+        images = dict()
+        for res in self.data_cols:
+            image = self.images[res][i]
+
+            if self.transform is not None:
+                transformed = self.transform(image=image)
+                image = transformed["image"]
+
+            if self.pytorch_transform is not None:
+                image = self.pytorch_transform(image)
+
+            if self.channels_last:
+                image = image.permute(1, 2, 0)
+
+            images[res] = image
+
+        return images
+
+    def __len__(self):
+        return self.dataset_size
 
 
 class Single_WSI_Dataset(Dataset):
