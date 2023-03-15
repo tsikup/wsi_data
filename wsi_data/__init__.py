@@ -18,6 +18,9 @@ from wsi_data.wholeslidedata.wholeslideimage import (
     MyWholeSlideImage,
 )
 
+from wsi_data.features_datasets import FeatureDatasetHDF5
+from wsi_data.single_wsi_datasets import Single_H5_Image_Dataset, Single_WSI_Dataset
+
 __all__ = [
     "QuPathAnnotationParser",
     "MultiResWholeSlideDataSet",
@@ -30,4 +33,7 @@ __all__ = [
     "OrderedLabelOneTimeSampler",
     "MultiResSampleSampler",
     "MultiResPatchSampler",
+    "Single_H5_Image_Dataset",
+    "Single_WSI_Dataset",
+    "FeatureDatasetHDF5",
 ]
