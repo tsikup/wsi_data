@@ -292,6 +292,12 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
             np.ndarray: numpy patch
         """
 
+        if isinstance(spacing, dict):
+            assert (
+                len(spacing) == 1
+            ), "Spacings must be a float or int for uniresolution patches"
+            spacing = spacing[spacing.keys()[0]]
+
         assert isinstance(spacing, float) or isinstance(
             spacing, int
         ), "Spacings must be a float or int"
