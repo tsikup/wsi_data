@@ -148,7 +148,7 @@ class MultiResWholeSlideImage(WholeSlideImage):
         y: int,
         width: int,
         height: int,
-        spacings: Dict[str, float],
+        spacing: Dict[str, float],
         center: bool = True,
         relative: bool = False,
     ) -> Union[
@@ -161,23 +161,23 @@ class MultiResWholeSlideImage(WholeSlideImage):
             y (int): y value
             width (int): width of region
             height (int): height of region
-            spacings (list of float): spacing/resolution of the patch at target, context and details level
+            spacing (list of float): spacing/resolution of the patch at target, context and details level
             center (bool, optional): if x,y values are centres or top left coordinated. Defaults to True.
             relative (bool, optional): if x,y values are a reference to the dimensions of the specified spacing. Defaults to False.
         Returns:
             np.ndarray: numpy patch
         """
 
-        if not isinstance(spacings, dict):
-            assert isinstance(spacings, float) or isinstance(
-                spacings, int
+        if not isinstance(spacing, dict):
+            assert isinstance(spacing, float) or isinstance(
+                spacing, int
             ), "Spacings must be a dictionary or float/int for uniresolution patches"
-            spacings = {"target": spacings}
+            spacing = {"target": spacing}
 
-        assert isinstance(spacings, dict), "Spacings must be a dictionary"
+        assert isinstance(spacing, dict), "Spacings must be a dictionary"
 
-        _original_spacing = spacings.copy()
-        _spacings = spacings.copy()
+        _original_spacing = spacing.copy()
+        _spacings = spacing.copy()
         _rescale = dict()
 
         data = dict()

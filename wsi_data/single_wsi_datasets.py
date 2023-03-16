@@ -231,16 +231,17 @@ class Single_WSI_Dataset(Dataset):
             self.open_wsi()
 
         annotation = self.annotations[i]
-        if self.multires:
-            data = self.wsi.get_data(
-                x=annotation[0],
-                y=annotation[1],
-                width=self.tile_size,
-                height=self.tile_size,
-                spacings=self.spacing,
-                center=True,
-            )
 
+        data = self.wsi.get_data(
+            x=annotation[0],
+            y=annotation[1],
+            width=self.tile_size,
+            height=self.tile_size,
+            spacing=self.spacing,
+            center=True,
+        )
+
+        if self.multires:
             o_data = dict()
             for key in data.keys():
                 o_data[key] = self._preprocess(
@@ -254,18 +255,8 @@ class Single_WSI_Dataset(Dataset):
                 )
                 if key == "target" and o_data[key] is None:
                     return dict.fromkeys(self.spacing.keys(), None)
-
             return o_data
         else:
-            data = self.wsi.get_data(
-                x=annotation[0],
-                y=annotation[1],
-                width=self.tile_size,
-                height=self.tile_size,
-                spacing=self.spacing,
-                center=True,
-            )
-
             return {
                 "target": self._preprocess(
                     data,
