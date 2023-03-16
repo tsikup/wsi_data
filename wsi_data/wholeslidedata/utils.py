@@ -15,6 +15,7 @@ from wholeslidedata.samplers.pointsampler import CenterPointSampler
 from wholeslidedata.samplers.samplesampler import SampleSampler
 from wholeslidedata.samplers.structures import BatchShape
 from wholeslidedata.source.associations import associate_files
+from wholeslidedata.source.files import WholeSlideAnnotationFile
 from wholeslidedata.source.utils import (
     NoSourceFilesInFolderError,
     factory_sources_from_paths,
@@ -184,8 +185,10 @@ def whole_slide_files_from_folder_factory(
 ):
     if file_type == "mrwsi":
         class_type = MultiResWholeSlideImageFile
-    else:
+    elif file_type == "wsi":
         class_type = MyWholeSlideImageFile
+    elif file_type == "wsa":
+        class_type = WholeSlideAnnotationFile
     all_sources = []
     folder = Path(folder)
     for extension in class_type.EXTENSIONS.names():
