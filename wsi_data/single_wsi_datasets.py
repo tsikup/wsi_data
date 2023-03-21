@@ -1,16 +1,17 @@
 import os
 import re
+from typing import Dict, List, Union
+
+import albumentations as A
 import h5py
 import torch
-import albumentations as A
 from torch.utils.data import Dataset
-from typing import Dict, Union, List
 from torchvision import transforms as T
 from wholeslidedata.annotation.structures import Polygon as WSDPolygon
+from wsi_data import MultiResWholeSlideImageFile, MyWholeSlideImageFile
 
 from he_preprocessing.filter.filter import apply_filters_to_image
-from he_preprocessing.utils.image import keep_tile, is_blurry, pad_image
-from wsi_data import MultiResWholeSlideImageFile, MyWholeSlideImageFile
+from he_preprocessing.utils.image import is_blurry, keep_tile, pad_image
 
 
 def read_h5file(file):
@@ -136,9 +137,15 @@ class Single_WSI_Dataset(Dataset):
         self.dataset_size = len(annotations)
         self.image_file = image_file
         self.wsi = None
-
         self.tile_size = tile_size
-        self.spacing = spacing
+
+        if isinstance(spacing, dict):
+            _spacing = {k: v for k, v in spacing.items() if v is not None}
+            assert len(_spacing) > 0
+            if len(_spacing) == 1:
+                _spacing = _spacing[list(_spacing.keys())[0]]
+        self.spacing = _spacing
+
         self.multires = isinstance(self.spacing, dict)
 
         self.transform = transform

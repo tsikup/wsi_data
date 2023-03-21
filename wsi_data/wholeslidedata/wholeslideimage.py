@@ -1,3 +1,5 @@
+from copy import copy
+
 import cv2
 import warnings
 import numpy as np
@@ -292,19 +294,20 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
             np.ndarray: numpy patch
         """
 
-        if isinstance(spacing, dict):
+        _spacing = copy(spacing)
+
+        if isinstance(_spacing, dict):
+            _spacing = {k: v for k, v in _spacing.items() if v is not None}
             assert (
-                len(spacing) == 1
-            ), "Spacings must be a float or int for uniresolution patches"
-            spacing = spacing[spacing.keys()[0]]
+                len(_spacing) == 1
+            ), "Spacings must be a dictionary with only one key, e.g. {'target': 0.5} or float or int for uniresolution patches"
+            _spacing = _spacing[list(_spacing.keys())[0]]
 
-        assert isinstance(spacing, float) or isinstance(
-            spacing, int
-        ), "Spacings must be a float or int"
+        assert isinstance(_spacing, float) or isinstance(_spacing, int)
 
-        _original_spacing = spacing
+        _original_spacing = _spacing
 
-        _spacing, _rescale = self.get_real_spacing(spacing, return_rescaling=True)
+        _spacing, _rescale = self.get_real_spacing(_spacing, return_rescaling=True)
 
         if _rescale:
             _scaling_factor = _original_spacing / _spacing
