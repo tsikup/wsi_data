@@ -144,7 +144,9 @@ class Single_WSI_Dataset(Dataset):
             assert len(_spacing) > 0
             if len(_spacing) == 1:
                 _spacing = _spacing[list(_spacing.keys())[0]]
-        self.spacing = _spacing
+            self.spacing = _spacing
+        else:
+            self.spacing = spacing
 
         self.multires = isinstance(self.spacing, dict)
 
