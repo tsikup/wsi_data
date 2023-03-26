@@ -1,17 +1,21 @@
-from torch.utils.data import BatchSampler, DataLoader
-from wsi_data.samplers import RandomHDF5BatchSampler
+from torch.utils.data import DataLoader
+from wsi_data.samplers import (
+    DistributedWeakShufflingBatchSampler,
+    WeakShufflingBatchSampler,
+    WeakShufflingSampler,
+)
 
 
-def fast_loader(
+def weak_shuffling_h5_fast_loader(
     dataset,
     batch_size=32,
+    num_replicas=1,
     drop_last=False,
-    shuffle=False,
     num_workers=0,
     pin_memory=False,
-    worker_init_fn=None,
     prefetch_factor=None,
     persistent_workers=False,
+    seed=42,
 ):
     """Implements fast loading by taking advantage of .h5 dataset
     The .h5 dataset has a speed bottleneck that scales (roughly) linearly with the number
@@ -33,8 +37,6 @@ def fast_loader(
     :type num_workers: int
     :param pin_memory: flag to indicate if data will be pinned in memory
     :type pin_memory: bool
-    :param worker_init_fn: function to be called on each worker to initialize it
-    :type worker_init_fn: function
     :param prefetch_factor: number of samples loaded in advance by each worker
     :type prefetch_factor: int
     :param persistent_workers: flag to indicate if the data loader will keep the workers
@@ -43,18 +45,22 @@ def fast_loader(
     :returns: dataloading that queries from data using shuffled batches
     :rtype: torch.utils.data.DataLoader
     """
+    sampler = WeakShufflingSampler(dataset, batch_size, seed=seed)
+
+    batch_sampler = WeakShufflingBatchSampler(
+        sampler,
+        batch_size=batch_size * num_replicas,
+        drop_last=drop_last,
+    )
+
+    distributed_batch_sampler = DistributedWeakShufflingBatchSampler(batch_sampler)
+
     return DataLoader(
         dataset,
         batch_size=None,
-        sampler=BatchSampler(
-            RandomHDF5BatchSampler(dataset, batch_size),
-            batch_size=batch_size,
-            drop_last=drop_last,
-        ),
+        sampler=distributed_batch_sampler,
         num_workers=num_workers,
-        shuffle=shuffle,
         pin_memory=pin_memory,
-        worker_init_fn=worker_init_fn,
         prefetch_factor=prefetch_factor,
         persistent_workers=persistent_workers,
     )
