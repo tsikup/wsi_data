@@ -51,6 +51,7 @@ def create_batch_sampler(
     batch_size: int = 1,
     labels: Union[Dict[str, int], None] = None,
     spacing: Union[Dict[str, float], None] = None,
+    ratio: int = 1,
     random_annotations: bool = False,
     seed=123,
 ):
@@ -93,7 +94,7 @@ def create_batch_sampler(
             hooks=(
                 MaskedTiledAnnotationHook(
                     tile_size=tile_size,
-                    ratio=1,
+                    ratio=ratio,
                     overlap=int(tile_size * stride_overlap_percentage),
                     intersection_percentage=intersection_percentage,
                     label_names=list(labels.keys()),

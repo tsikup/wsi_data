@@ -55,8 +55,8 @@ class MaskedTiledAnnotationHook(AnnotationHook):
         intersection_percentage=0.2,
         full_coverage=False,
     ):
-        self._tile_size = tile_size * ratio
-        self._overlap = overlap * ratio
+        self._tile_size = int(tile_size * ratio)
+        self._overlap = int(overlap * ratio)
         self._full_coverage = full_coverage
         self._label_names = label_names
         self._intersection_percentage = intersection_percentage
