@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import BatchSampler, DistributedSampler, Sampler
+from torch.utils.data import BatchSampler, Sampler
 
 
 class WeakShufflingSampler(Sampler):

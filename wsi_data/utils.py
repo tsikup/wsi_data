@@ -6,6 +6,20 @@ from wsi_data.samplers import (
 )
 
 
+def to_tuple(x, shape=3):
+    if isinstance(x, (tuple, list)):
+        return list(x)
+    else:
+        return [
+            x,
+        ] * shape
+
+
+def setall(d, keys, value):
+    for k in keys:
+        d[k] = value
+
+
 def weak_shuffling_h5_fast_loader(
     dataset,
     batch_size=32,
