@@ -1,9 +1,9 @@
-import numpy as np
 from pathlib import Path
+from typing import Dict, List, Union
+
+import numpy as np
 from natsort import os_sorted
 from PIL import Image, ImageDraw
-from typing import List, Union, Dict
-
 from wholeslidedata.annotation.parser import AnnotationParser
 from wholeslidedata.annotation.structures import Annotation
 from wholeslidedata.dataset import WholeSlideDataSet
@@ -16,23 +16,16 @@ from wholeslidedata.samplers.samplesampler import SampleSampler
 from wholeslidedata.samplers.structures import BatchShape
 from wholeslidedata.source.associations import associate_files
 from wholeslidedata.source.files import WholeSlideAnnotationFile
-from wholeslidedata.source.utils import (
-    NoSourceFilesInFolderError,
-    factory_sources_from_paths,
-)
+from wholeslidedata.source.utils import NoSourceFilesInFolderError, factory_sources_from_paths
 
-from wsi_data import (
-    QuPathAnnotationParser,
-    MultiResWholeSlideDataSet,
-    MultiResWholeSlideImageFile,
-    MyWholeSlideImageFile,
-    MaskedTiledAnnotationHook,
-    BatchOneTimeReferenceSampler,
-    OrderedLabelOneTimeSampler,
-    MultiResSampleSampler,
-    MultiResPatchSampler,
-)
-from .samplers import RandomOneTimeAnnotationSampler
+from wsi_data.wholeslidedata.annotation_parser import QuPathAnnotationParser
+from wsi_data.wholeslidedata.dataset import MultiResWholeSlideDataSet
+from wsi_data.wholeslidedata.files import MultiResWholeSlideImageFile, MyWholeSlideImageFile
+from wsi_data.wholeslidedata.hooks import MaskedTiledAnnotationHook
+
+from .samplers import (
+    BatchOneTimeReferenceSampler, MultiResPatchSampler, MultiResSampleSampler, OrderedLabelOneTimeSampler,
+    RandomOneTimeAnnotationSampler,)
 
 
 def create_batch_sampler(
