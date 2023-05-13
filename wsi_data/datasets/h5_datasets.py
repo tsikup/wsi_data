@@ -132,7 +132,7 @@ class FeatureDatasetHDF5(Dataset):
         features, label = self.read_hdf5(h5_path, load_ram=self.load_ram)
         return {
             "features": features,
-            "label": label,
+            "labels": label,
             "slide_name": Path(h5_path).name,
         }
 
