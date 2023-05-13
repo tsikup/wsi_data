@@ -129,7 +129,12 @@ class FeatureDatasetHDF5(Dataset):
 
     def __getitem__(self, i: int):
         h5_path = self.slides[i]
-        return self.read_hdf5(h5_path, load_ram=self.load_ram)
+        features, label = self.read_hdf5(h5_path, load_ram=self.load_ram)
+        return {
+            "features": features,
+            "label": label,
+            "slide_name": Path(h5_path).name,
+        }
 
     def __len__(self):
         return self.dataset_size
