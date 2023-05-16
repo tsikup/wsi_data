@@ -72,8 +72,8 @@ class FeatureDatasetHDF5(Dataset):
 
     @staticmethod
     def collate(batch):
-        data = [item[0] for item in batch]
-        target = [item[1] for item in batch]
+        data = [item['features'] for item in batch]
+        target = [item['labels'] for item in batch]
         target = torch.vstack(target)
         return [data, target]
 
