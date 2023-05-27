@@ -87,10 +87,10 @@ class FeatureDatasetHDF5(Dataset):
 
             if "labels" in self.data_cols:
                 label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
+                label = torch.from_numpy(np.array([label], dtype=label.dtype))
             else:
                 label = -100
-
-            label = torch.from_numpy(np.array([label], dtype=label.dtype))
+                label = torch.from_numpy(np.array([label], dtype=np.uint8))
 
             features = dict(features=features)
 
