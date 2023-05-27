@@ -43,7 +43,11 @@ class FeatureDatasetHDF5(Dataset):
         self.base_label = base_label
         self.load_ram = load_ram
 
-        self.multiresolution = len(self.data_cols) > 2
+        self.multiresolution = (
+            len(self.data_cols) > 2
+            if "labels" in self.data_cols
+            else len(self.data_cols) > 1
+        )
 
         assert (
             "features_target" in self.data_cols
