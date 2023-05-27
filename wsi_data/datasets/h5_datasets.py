@@ -72,8 +72,8 @@ class FeatureDatasetHDF5(Dataset):
 
     @staticmethod
     def collate(batch):
-        data = [item['features'] for item in batch]
-        target = [item['labels'] for item in batch]
+        data = [item["features"] for item in batch]
+        target = [item["labels"] for item in batch]
         target = torch.vstack(target)
         return [data, target]
 
@@ -85,8 +85,11 @@ class FeatureDatasetHDF5(Dataset):
             features = h5_dataset[self.data_cols["features_target"]]
             features = torch.from_numpy(features[...]) if load_ram else features
 
-            label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
-            label = torch.from_numpy(np.array([label], dtype=label.dtype))
+            if "labels" in self.data_cols:
+                label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
+                label = torch.from_numpy(np.array([label], dtype=label.dtype))
+            else:
+                label = None
 
             features = dict(features=features)
 
