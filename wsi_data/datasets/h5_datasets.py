@@ -104,7 +104,6 @@ class FeatureDatasetHDF5(Dataset):
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
 
-        features_dict["features"] = features_dict.pop("features_target")
         return features_dict, label
 
     def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
