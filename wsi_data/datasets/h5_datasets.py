@@ -76,18 +76,26 @@ class FeatureDatasetHDF5(Dataset):
 
     @staticmethod
     def collate(batch):
-        data = [item["features"] for item in batch]
-        target = [item["labels"] for item in batch]
+        data = []
+        target = []
+        for item in batch:
+            data.append(item["features"])
+            target.append(item["labels"])
         target = torch.vstack(target)
-        return [data, target]
+        return data, target
 
     def read_hdf5(self, h5_path, load_ram=False):
         assert os.path.exists(h5_path), f"{h5_path} does not exist"
 
         # Open hdf5 file where images and labels are stored
         with h5py.File(h5_path, "r") as h5_dataset:
-            features = h5_dataset[self.data_cols["features_target"]]
-            features = torch.from_numpy(features[...]) if load_ram else features
+            features_dict = dict()
+
+            for key in self.data_cols:
+                if key != "labels":
+                    features = h5_dataset[self.data_cols[key]]
+                    features = torch.from_numpy(features[...]) if load_ram else features
+                    features_dict[key] = features
 
             if "labels" in self.data_cols:
                 label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
@@ -95,15 +103,6 @@ class FeatureDatasetHDF5(Dataset):
             else:
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
-
-            features = dict(features=features)
-
-            if self.multiresolution:
-                for key in self.data_cols:
-                    if key not in ["features_target", "labels"]:
-                        _tmp = h5_dataset[self.data_cols[key]]
-                        _tmp = torch.from_numpy(_tmp[...]) if load_ram else _tmp
-                        features[key] = _tmp
 
         return features, label
 
