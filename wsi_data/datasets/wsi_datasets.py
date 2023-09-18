@@ -21,7 +21,7 @@ class Single_WSI_Dataset(Dataset):
     @staticmethod
     def collate_fn(batch):
         key = "target"
-        batch = list(filter(lambda x: x[key]["img_array"] is not None, batch))
+        batch = list(filter(lambda x: x[key] is not None, batch))
         if len(batch) == 0:
             return []
         return torch.utils.data.dataloader.default_collate(batch)
