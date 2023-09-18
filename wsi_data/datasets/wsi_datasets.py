@@ -166,7 +166,8 @@ class Single_WSI_Dataset(Dataset):
         if self.multires:
             o_data = dict()
             for key in data.keys():
-                o_data[key] = self._preprocess(
+                o_data[key] = dict()
+                o_data[key]["img_array"] = self._preprocess(
                     data[key],
                     blurriness_threshold=self.blurriness_threshold[key]
                     if self.blurriness_threshold is not None
@@ -175,14 +176,21 @@ class Single_WSI_Dataset(Dataset):
                     if self.tissue_percentage is not None
                     else None,
                 )
-                if key == "target" and o_data[key] is None:
+                o_data[key]["x"] = annotation[0]
+                o_data[key]["y"] = annotation[1]
+                o_data[key]["spacing"] = self.spacing[key]
+                if key == "target" and o_data[key]["img_array"] is None:
                     return dict.fromkeys(self.spacing.keys(), None)
             return o_data
         else:
             return {
-                "target": self._preprocess(
-                    data,
-                    blurriness_threshold=self.blurriness_threshold,
-                    tissue_percentage=self.tissue_percentage,
-                )
+                "target": {
+                    "img_array": self._preprocess(
+                        data,
+                        blurriness_threshold=self.blurriness_threshold,
+                        tissue_percentage=self.tissue_percentage,
+                    ),
+                    "x": annotation[0],
+                    "y": annotation[1],
+                }
             }
