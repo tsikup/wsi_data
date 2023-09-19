@@ -16,16 +16,26 @@ from wholeslidedata.samplers.samplesampler import SampleSampler
 from wholeslidedata.samplers.structures import BatchShape
 from wholeslidedata.source.associations import associate_files
 from wholeslidedata.source.files import WholeSlideAnnotationFile
-from wholeslidedata.source.utils import NoSourceFilesInFolderError, factory_sources_from_paths
+from wholeslidedata.source.utils import (
+    NoSourceFilesInFolderError,
+    factory_sources_from_paths,
+)
 
 from wsi_data.wholeslidedata.annotation_parser import QuPathAnnotationParser
 from wsi_data.wholeslidedata.dataset import MultiResWholeSlideDataSet
-from wsi_data.wholeslidedata.files import MultiResWholeSlideImageFile, MyWholeSlideImageFile
+from wsi_data.wholeslidedata.files import (
+    MultiResWholeSlideImageFile,
+    MyWholeSlideImageFile,
+)
 from wsi_data.wholeslidedata.hooks import MaskedTiledAnnotationHook
 
 from .samplers import (
-    BatchOneTimeReferenceSampler, MultiResPatchSampler, MultiResSampleSampler, OrderedLabelOneTimeSampler,
-    RandomOneTimeAnnotationSampler,)
+    BatchOneTimeReferenceSampler,
+    MultiResPatchSampler,
+    MultiResSampleSampler,
+    OrderedLabelOneTimeSampler,
+    RandomOneTimeAnnotationSampler,
+)
 
 
 def create_batch_sampler(
@@ -371,3 +381,25 @@ def get_files(
         )
 
     return image_files, annotation_files
+
+
+def crop_data(data, output_shape):
+
+    if (data.shape[0] == output_shape[0]) and (data.shape[1] == output_shape[1]):
+        return data
+
+    cropx = (data.shape[0] - output_shape[0]) // 2
+    cropy = (data.shape[1] - output_shape[1]) // 2
+
+    if len(data.shape) == 2:
+        return data[cropx:-cropx, cropy:-cropy]
+    if len(data.shape) == 3:
+        return data[cropx:-cropx, cropy:-cropy, :]
+    if len(data.shape) == 4:
+        cropx = (data.shape[1] - output_shape[0]) // 2
+        cropy = (data.shape[2] - output_shape[1]) // 2
+        return data[:, cropx:-cropx, cropy:-cropy, :]
+    if len(data.shape) == 5:
+        cropx = (data.shape[2] - output_shape[0]) // 2
+        cropy = (data.shape[3] - output_shape[1]) // 2
+        return data[:, :, cropx:-cropx, cropy:-cropy, :]
