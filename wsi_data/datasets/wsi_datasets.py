@@ -11,6 +11,11 @@ from wsi_data.wholeslidedata.files import (
 from he_preprocessing.filter.filter import apply_filters_to_image
 from he_preprocessing.utils.image import is_blurry, keep_tile, pad_image
 
+from wsi_data.wholeslidedata.wholeslideimage import (
+    MyWholeSlideImage,
+    MultiResWholeSlideImage,
+)
+
 
 class Single_WSI_Dataset(Dataset):
     """
@@ -49,7 +54,7 @@ class Single_WSI_Dataset(Dataset):
         self.annotations = [ann.center for ann in annotations]
         self.dataset_size = len(annotations)
         self.image_file = image_file
-        self.wsi = None
+        self.wsi: Union[MyWholeSlideImage, MultiResWholeSlideImage] = None
         self.tile_size = tile_size
 
         if isinstance(spacing, dict):
