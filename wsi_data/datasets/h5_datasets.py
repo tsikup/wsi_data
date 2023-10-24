@@ -78,11 +78,13 @@ class FeatureDatasetHDF5(Dataset):
     def collate(batch):
         data = []
         target = []
+        slide_name = []
         for item in batch:
             data.append(item["features"])
             target.append(item["labels"])
+            slide_name.append(item["slide_name"])
         target = torch.vstack(target)
-        return data, target
+        return data, target, slide_name
 
     @staticmethod
     def surv_collate(batch):
@@ -90,11 +92,13 @@ class FeatureDatasetHDF5(Dataset):
         censor = []
         survtime = []
         target = []
+        slide_name = []
         for item in batch:
             data.append(item["features"])
             censor.append(item["censor"])
             survtime.append(item["survtime"])
             target.append(item["labels"])
+            slide_name.append(item["slide_name"])
         censor = torch.vstack(censor)
         survtime = torch.vstack(survtime)
         target = torch.vstack(target)
@@ -103,6 +107,7 @@ class FeatureDatasetHDF5(Dataset):
             "label": target,
             "censor": censor,
             "survtime": survtime,
+            "slide_name": slide_name,
         }
 
     def read_hdf5(self, h5_path, load_ram=False):
