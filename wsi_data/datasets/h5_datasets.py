@@ -98,7 +98,12 @@ class FeatureDatasetHDF5(Dataset):
         censor = torch.vstack(censor)
         survtime = torch.vstack(survtime)
         target = torch.vstack(target)
-        return data, target, censor, survtime
+        return {
+            "features": data,
+            "label": target,
+            "censor": censor,
+            "survtime": survtime,
+        }
 
     def read_hdf5(self, h5_path, load_ram=False):
         def is_survival_data(_key: str):
