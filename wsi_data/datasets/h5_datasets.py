@@ -165,12 +165,23 @@ class FeatureDatasetHDF5(Dataset):
 
     def __getitem__(self, i: int):
         h5_path = self.slides[i]
-        features, label = self.read_hdf5(h5_path, load_ram=self.load_ram)
-        return {
-            "features": features,
-            "labels": label,
-            "slide_name": Path(h5_path).name,
-        }
+        data = self.read_hdf5(h5_path, load_ram=self.load_ram)
+        if len(data) == 2:
+            features, label = data
+            return {
+                "features": features,
+                "labels": label,
+                "slide_name": Path(h5_path).name,
+            }
+        elif len(data) == 4:
+            features, label, survtime, censor = data
+            return {
+                "features": features,
+                "labels": label,
+                "survtime": survtime,
+                "censor": censor,
+                "slide_name": Path(h5_path).name,
+            }
 
     def __len__(self):
         return self.dataset_size
