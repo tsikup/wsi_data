@@ -84,14 +84,33 @@ class FeatureDatasetHDF5(Dataset):
         target = torch.vstack(target)
         return data, target
 
+    @staticmethod
+    def surv_collate(batch):
+        data = []
+        censor = []
+        survtime = []
+        for item in batch:
+            data.append(item["features"])
+            censor.append(item["censor"])
+            survtime.append(item["survtime"])
+        censor = torch.vstack(censor)
+        survtime = torch.vstack(survtime)
+        return data, censor, survtime
+
     def read_hdf5(self, h5_path, load_ram=False):
+        def is_survival_data(_key: str):
+            return _key == "survtime" or _key == "censor" or _key == "status"
+
         assert os.path.exists(h5_path), f"{h5_path} does not exist"
 
         # Open hdf5 file where images and labels are stored
         with h5py.File(h5_path, "r") as h5_dataset:
             features_dict = dict()
-
+            survival = False
             for key in self.data_cols:
+                if is_survival_data(key):
+                    survival = True
+                    continue
                 if key != "labels":
                     features = h5_dataset[self.data_cols[key]]
                     features = torch.from_numpy(features[...]) if load_ram else features
@@ -104,7 +123,16 @@ class FeatureDatasetHDF5(Dataset):
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
 
+            if survival:
+                survtime = h5_dataset[self.data_cols["survtime"]][0]
+                survtime = torch.from_numpy(np.array([survtime], dtype=float))
+
+                censor = h5_dataset[self.data_cols["censor"]][0]
+                censor = torch.from_numpy(np.array([censor], dtype=np.uint8))
+
         features_dict["features"] = features_dict.pop("features_target")
+        if survival:
+            return features_dict, label, survtime, censor
         return features_dict, label
 
     def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
