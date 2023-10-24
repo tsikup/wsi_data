@@ -89,13 +89,16 @@ class FeatureDatasetHDF5(Dataset):
         data = []
         censor = []
         survtime = []
+        target = []
         for item in batch:
             data.append(item["features"])
             censor.append(item["censor"])
             survtime.append(item["survtime"])
+            target.append(item["labels"])
         censor = torch.vstack(censor)
         survtime = torch.vstack(survtime)
-        return data, censor, survtime
+        target = torch.vstack(target)
+        return data, target, censor, survtime
 
     def read_hdf5(self, h5_path, load_ram=False):
         def is_survival_data(_key: str):
