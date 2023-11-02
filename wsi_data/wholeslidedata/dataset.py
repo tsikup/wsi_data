@@ -1,14 +1,15 @@
 from typing import Dict, Tuple
+
+from sourcelib.associations import Associations
 from wholeslidedata.annotation import utils as annotation_utils
-from wholeslidedata.dataset import DataSet, WholeSlideSampleReference
-from wholeslidedata.labels import Labels
-from wholeslidedata.source.associations import Associations
-from wholeslidedata.source.files import WholeSlideAnnotationFile
+from wholeslidedata.annotation.labels import Labels
+from wholeslidedata.data.dataset import WholeSlideDataSet, WholeSlideSampleReference
+from wholeslidedata.data.files import WholeSlideAnnotationFile
 
 from .files import MultiResWholeSlideImageFile
 
 
-class MultiResWholeSlideDataSet(DataSet):
+class MultiResWholeSlideDataSet(WholeSlideDataSet):
     def __init__(
         self,
         mode,

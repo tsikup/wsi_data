@@ -1,18 +1,19 @@
+import warnings
 from copy import copy
+from pathlib import Path
+from typing import Any, Dict, Tuple, Union
 
 import cv2
-import warnings
 import numpy as np
-from pathlib import Path
-from typing import Union, Dict
 from numpy import ndarray
 from wholeslidedata import WholeSlideAnnotation
-from wholeslidedata.image.backend import WholeSlideImageBackend
-from wholeslidedata.image.utils import take_closest_level
-from wholeslidedata.image.wholeslideimage import WholeSlideImage
 from wholeslidedata.annotation import utils as annotation_utils
+from wholeslidedata.image.backend import WholeSlideImageBackend
+from wholeslidedata.image.spacings import take_closest_level
+from wholeslidedata.image.wholeslideimage import WholeSlideImage
+from wholeslidedata.interoperability.qupath.parser import QuPathAnnotationParser
+from wholeslidedata.samplers.patchlabelsampler import SegmentationPatchLabelSampler
 
-from wsi_data.wholeslidedata.annotation_parser import QuPathAnnotationParser
 import he_preprocessing.utils.image as ut_image
 
 
@@ -28,12 +29,19 @@ class MultiResWholeSlideImage(WholeSlideImage):
 
         self.annotation = None
         if annotation_path:
+            assert annotation_path.endswith(
+                ".geojson"
+            ), "Annotation must be a geojson file."
             self._annotation_parser = QuPathAnnotationParser()
             self.annotation = WholeSlideAnnotation(
                 annotation_path=annotation_path,
                 labels=labels,
                 parser=self._annotation_parser,
             )
+        else:
+            self.annotation = None
+
+        self.mask_sampler: SegmentationPatchLabelSampler = None
 
     @property
     def labels(self):
@@ -60,6 +68,9 @@ class MultiResWholeSlideImage(WholeSlideImage):
         return annotation_utils.get_pixels_in_annotations(
             self.annotation.annotations, labels=self.labels
         )
+
+    def create_mask_sampler(self):
+        self.mask_sampler = SegmentationPatchLabelSampler()
 
     def get_tissue_mask(self, spacing=32, return_contours=True):
         downsample = self.get_downsampling_from_spacing(spacing)
@@ -153,9 +164,10 @@ class MultiResWholeSlideImage(WholeSlideImage):
         spacing: Dict[str, float],
         center: bool = True,
         relative: bool = False,
+        with_mask: bool = False,
     ) -> Union[
-        dict[str, Union[ndarray, ndarray, list[Union[ndarray, ndarray]]]],
-        dict[str, Union[ndarray, ndarray]],
+        tuple[dict[Any, Union[Union[ndarray, ndarray], Any]], dict[Any, Any]],
+        dict[Any, Union[Union[ndarray, ndarray], Any]],
     ]:
         """Extracts multi-resolution patches/regions from the wholeslideimage
         Args:
@@ -170,6 +182,9 @@ class MultiResWholeSlideImage(WholeSlideImage):
             np.ndarray: numpy patch
         """
 
+        if with_mask and self.mask_sampler is None:
+            self.create_mask_sampler()
+
         if not isinstance(spacing, dict):
             assert isinstance(spacing, float) or isinstance(
                 spacing, int
@@ -183,6 +198,7 @@ class MultiResWholeSlideImage(WholeSlideImage):
         _rescale = dict()
 
         data = dict()
+        mask = dict()
 
         for key, value in _spacings.items():
             _spacings[key], _rescale[key] = self.get_real_spacing(
@@ -213,58 +229,76 @@ class MultiResWholeSlideImage(WholeSlideImage):
                 relative=relative,
             )
 
+            if with_mask:
+                assert center, "Mask sampling only works with center=True"
+                _mask = self.mask_sampler.sample(
+                    self.annotation,
+                    (x, y),
+                    size=(_width, _height),
+                    ratio=spacing
+                    / self.spacings[
+                        0
+                    ],  # Test if this is correct by manual annotating a region in qupath
+                )
+
             if _rescale[key]:
                 _patch = cv2.resize(_patch, (width, height))
+                if with_mask:
+                    _mask = cv2.resize(_mask, (width, height))
 
             data[key] = _patch
+            if with_mask:
+                mask[key] = _mask
 
-        # Details
-        x_details = None
-        if "details" in _spacings and not _rescale["details"]:
-            x_details = []
+        # # Details
+        # x_details = None
+        # if "details" in _spacings and not _rescale["details"]:
+        #     x_details = []
+        #
+        #     (
+        #         num_details_patches,
+        #         total_i,
+        #         total_j,
+        #         downsampling_target,
+        #         downsampling_details,
+        #     ) = self.get_num_details(width, height, _spacings)
+        #
+        #     if center:
+        #         # Get top left coords of target resolution
+        #         downsampling = int(
+        #             self.get_downsampling_from_spacing(_spacings["target"])
+        #         )
+        #         x, y = x - downsampling * (width // 2), y - downsampling * (height // 2)
+        #
+        #     for idx in range(num_details_patches):
+        #         i = int(idx // total_i)
+        #         j = int(idx % total_j)
+        #
+        #         rel_coord_x = j * width * downsampling_target
+        #         rel_coord_y = i * height * downsampling_target
+        #
+        #         coord_x = x + rel_coord_x
+        #         coord_y = y + rel_coord_y
+        #         x_details.append(
+        #             self.get_patch(
+        #                 coord_x,
+        #                 coord_y,
+        #                 width,
+        #                 height,
+        #                 spacing=_spacings["details"],
+        #                 center=False,
+        #                 relative=relative,
+        #             )
+        #         )
+        #
+        #     data["details"] = x_details
+        # elif "details" in _spacings:
+        #     raise NotImplementedError(
+        #         "Details extraction with rescaling not implemented yet"
+        #     )
 
-            (
-                num_details_patches,
-                total_i,
-                total_j,
-                downsampling_target,
-                downsampling_details,
-            ) = self.get_num_details(width, height, _spacings)
-
-            if center:
-                # Get top left coords of target resolution
-                downsampling = int(
-                    self.get_downsampling_from_spacing(_spacings["target"])
-                )
-                x, y = x - downsampling * (width // 2), y - downsampling * (height // 2)
-
-            for idx in range(num_details_patches):
-                i = int(idx // total_i)
-                j = int(idx % total_j)
-
-                rel_coord_x = j * width * downsampling_target
-                rel_coord_y = i * height * downsampling_target
-
-                coord_x = x + rel_coord_x
-                coord_y = y + rel_coord_y
-                x_details.append(
-                    self.get_patch(
-                        coord_x,
-                        coord_y,
-                        width,
-                        height,
-                        spacing=_spacings["details"],
-                        center=False,
-                        relative=relative,
-                    )
-                )
-
-            data["details"] = x_details
-        elif "details" in _spacings:
-            raise NotImplementedError(
-                "Details extraction with rescaling not implemented yet"
-            )
-
+        if with_mask:
+            return data, mask
         return data
 
 
@@ -278,7 +312,8 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
         spacing: float,
         center: bool = True,
         relative: bool = False,
-    ) -> np.ndarray:
+        with_mask: bool = False,
+    ) -> Union[ndarray, Tuple[ndarray, ndarray]]:
         """Extracts a patch/region from the wholeslideimage
 
         Args:
@@ -329,9 +364,25 @@ class MyWholeSlideImage(MultiResWholeSlideImage):
             relative=relative,
         )
 
+        if with_mask:
+            assert center, "Mask sampling only works with center=True"
+            _mask = self.mask_sampler.sample(
+                self.annotation,
+                (x, y),
+                size=(_width, _height),
+                ratio=_spacing
+                / self.spacings[
+                    0
+                ],  # Test if this is correct by manual annotating a region in qupath
+            )
+
         if _rescale:
             _patch = cv2.resize(_patch, (width, height))
+            if with_mask:
+                _mask = cv2.resize(_mask, (width, height))
 
+        if with_mask:
+            return _patch, _mask
         return _patch
 
 

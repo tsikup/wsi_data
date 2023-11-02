@@ -1,20 +1,22 @@
 from typing import Dict, List, Union
+
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-from wholeslidedata.annotation.structures import Polygon as WSDPolygon
+from wholeslidedata import WholeSlideAnnotation
+from wholeslidedata.annotation.types import PolygonAnnotation as WSDPolygon
+from wholeslidedata.data.files import WholeSlideAnnotationFile
 from wsi_data.wholeslidedata.files import (
     MultiResWholeSlideImageFile,
     MyWholeSlideImageFile,
 )
+from wsi_data.wholeslidedata.wholeslideimage import (
+    MultiResWholeSlideImage,
+    MyWholeSlideImage,
+)
 
 from he_preprocessing.filter.filter import apply_filters_to_image
 from he_preprocessing.utils.image import is_blurry, keep_tile, pad_image
-
-from wsi_data.wholeslidedata.wholeslideimage import (
-    MyWholeSlideImage,
-    MultiResWholeSlideImage,
-)
 
 
 class Single_WSI_Dataset(Dataset):
@@ -45,6 +47,8 @@ class Single_WSI_Dataset(Dataset):
         blurriness_threshold: Union[dict, int, None] = None,
         tissue_percentage: Union[dict, int, None] = None,
         constant_pad_value: int = 230,
+        segmentation: bool = False,
+        wsa: Union[WholeSlideAnnotation, WholeSlideAnnotationFile] = None,
     ):
         """
         :param image_file: A WholeSlideImageFile object
@@ -55,6 +59,7 @@ class Single_WSI_Dataset(Dataset):
         self.dataset_size = len(annotations)
         self.image_file = image_file
         self.wsi: Union[MyWholeSlideImage, MultiResWholeSlideImage] = None
+        self.wsa: Union[WholeSlideAnnotation, WholeSlideAnnotationFile] = wsa
         self.tile_size = tile_size
 
         if isinstance(spacing, dict):
@@ -73,6 +78,7 @@ class Single_WSI_Dataset(Dataset):
         self.blurriness_threshold = blurriness_threshold
         self.tissue_percentage = tissue_percentage
         self.constant_pad_value = constant_pad_value
+        self.segmentation = segmentation
 
         self.assert_validity()
 
@@ -148,6 +154,9 @@ class Single_WSI_Dataset(Dataset):
 
     def open_wsi(self):
         self.wsi = self.image_file.open()
+        if isinstance(self.wsa, WholeSlideAnnotationFile):
+            self.wsa = self.wsa.open()
+            self.wsi.annotation = self.wsa
 
     def __getitem__(self, i):
         """
@@ -159,14 +168,26 @@ class Single_WSI_Dataset(Dataset):
 
         annotation = self.annotations[i]
 
-        data = self.wsi.get_data(
-            x=annotation[0],
-            y=annotation[1],
-            width=self.tile_size,
-            height=self.tile_size,
-            spacing=self.spacing,
-            center=True,
-        )
+        if self.segmentation:
+            data, mask = self.wsi.get_data(
+                x=annotation[0],
+                y=annotation[1],
+                width=self.tile_size,
+                height=self.tile_size,
+                spacing=self.spacing,
+                center=True,
+                with_mask=True,
+            )
+        else:
+            data = self.wsi.get_data(
+                x=annotation[0],
+                y=annotation[1],
+                width=self.tile_size,
+                height=self.tile_size,
+                spacing=self.spacing,
+                center=True,
+                with_mask=False,
+            )
 
         if self.multires:
             o_data = dict()
@@ -184,6 +205,8 @@ class Single_WSI_Dataset(Dataset):
                 o_data[key]["x"] = annotation[0]
                 o_data[key]["y"] = annotation[1]
                 o_data[key]["spacing"] = self.spacing[key]
+                if self.segmentation:
+                    o_data[key]["mask_array"] = mask[key]
                 if key == "target" and o_data[key]["img_array"] is None:
                     return dict.fromkeys(self.spacing.keys(), None)
             return o_data
@@ -197,5 +220,7 @@ class Single_WSI_Dataset(Dataset):
                     ),
                     "x": annotation[0],
                     "y": annotation[1],
+                    "spacing": self.spacing,
+                    "mask_array": mask,
                 }
             }

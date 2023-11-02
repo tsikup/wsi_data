@@ -4,30 +4,27 @@ from typing import Dict, List, Union
 import numpy as np
 from natsort import os_sorted
 from PIL import Image, ImageDraw
+from sourcelib.associations import associate_files
+from sourcelib.collect import NoSourceFilesInFolderError
 from wholeslidedata.annotation.parser import AnnotationParser
-from wholeslidedata.annotation.structures import Annotation
-from wholeslidedata.dataset import WholeSlideDataSet
+from wholeslidedata.annotation.types import Annotation
+from wholeslidedata.data.dataset import WholeSlideDataSet
+from wholeslidedata.data.files import WholeSlideAnnotationFile
+from wholeslidedata.data.mode import WholeSlideMode
 from wholeslidedata.samplers.annotationsampler import OrderedAnnotationSampler
 from wholeslidedata.samplers.batchsampler import BatchSampler
+from wholeslidedata.samplers.batchshape import BatchShape
 from wholeslidedata.samplers.patchlabelsampler import SegmentationPatchLabelSampler
 from wholeslidedata.samplers.patchsampler import PatchSampler
 from wholeslidedata.samplers.pointsampler import CenterPointSampler
 from wholeslidedata.samplers.samplesampler import SampleSampler
-from wholeslidedata.samplers.structures import BatchShape
-from wholeslidedata.source.associations import associate_files
-from wholeslidedata.source.files import WholeSlideAnnotationFile
-from wholeslidedata.source.utils import (
-    NoSourceFilesInFolderError,
-    factory_sources_from_paths,
-)
-
-from wsi_data.wholeslidedata.annotation_parser import QuPathAnnotationParser
+from wholeslidedata.interoperability.qupath.parser import QuPathAnnotationParser
+from wsi_data.wholeslidedata.callbacks import MaskedTiledAnnotationCallback
 from wsi_data.wholeslidedata.dataset import MultiResWholeSlideDataSet
 from wsi_data.wholeslidedata.files import (
     MultiResWholeSlideImageFile,
     MyWholeSlideImageFile,
 )
-from wsi_data.wholeslidedata.hooks import MaskedTiledAnnotationHook
 
 from .samplers import (
     BatchOneTimeReferenceSampler,
@@ -94,8 +91,8 @@ def create_batch_sampler(
             parser = AnnotationParser
         parser = parser(
             labels=labels,
-            hooks=(
-                MaskedTiledAnnotationHook(
+            callbacks=(
+                MaskedTiledAnnotationCallback(
                     tile_size=tile_size,
                     ratio=ratio,
                     overlap=int(tile_size * stride_overlap_percentage),
@@ -176,6 +173,26 @@ def create_batch_sampler(
     batch_sampler = BatchSampler(dataset=dataset, sampler=sample_sampler)
 
     return batch_sampler, batch_ref_sampler, batch_shape
+
+
+def factory_sources_from_paths(
+    cls: Union[str, type],
+    mode: Union[str, WholeSlideMode],
+    paths: List[str],
+    filters: List[str],
+    excludes: List[str],
+    **kwargs,
+):
+    files = []
+    paths = set(paths)
+    for path in paths:
+        path = str(path)
+        if any([exclude in path for exclude in excludes]):
+            continue
+        if filters and not any([filter in path for filter in filters]):
+            continue
+        files.append(cls(mode=mode, path=path, **kwargs))
+    return files
 
 
 def whole_slide_files_from_folder_factory(
@@ -332,9 +349,11 @@ def get_files(
     slide_extension=".ndpi",
     ann_extension=".geojson",
     tiled=True,
+    return_raw_annotation=False,
 ):
     image_files = None
     annotation_files = None
+    raw_annotation_files = None
 
     if slides_dir is not None:
         image_files = whole_slide_files_from_folder_factory(
@@ -356,10 +375,11 @@ def get_files(
             parser = QuPathAnnotationParser
         else:
             parser = AnnotationParser
-        parser = parser(
+
+        _parser = parser(
             labels=labels,
-            hooks=(
-                MaskedTiledAnnotationHook(
+            callbacks=(
+                MaskedTiledAnnotationCallback(
                     tile_size=tile_size,
                     label_names=list(labels.keys()),
                     ratio=ratio,
@@ -371,15 +391,28 @@ def get_files(
                 else None,
             ),
         )
-
         annotation_files = whole_slide_files_from_folder_factory(
             annotations_dir,
             "wsa",
             excludes=["tif"],
             filters=[ann_extension],
-            annotation_parser=parser,
+            annotation_parser=_parser,
         )
 
+        if return_raw_annotation:
+            raw_annotation_files = whole_slide_files_from_folder_factory(
+                annotations_dir,
+                "wsa",
+                excludes=["tif"],
+                filters=[ann_extension],
+                annotation_parser=parser(
+                    labels=labels,
+                    callbacks=None,
+                ),
+            )
+
+    if return_raw_annotation:
+        return image_files, annotation_files, raw_annotation_files
     return image_files, annotation_files
 
 

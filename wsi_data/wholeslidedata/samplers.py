@@ -2,10 +2,10 @@ from typing import Union, Dict
 from wholeslidedata import WholeSlideAnnotation
 from wholeslidedata.samplers.annotationsampler import AnnotationSampler
 from wholeslidedata.samplers.batchreferencesampler import BatchReferenceSampler
+from wholeslidedata.samplers.batchshape import BatchShape
 from wholeslidedata.samplers.labelsampler import LabelSampler
 from wholeslidedata.samplers.patchlabelsampler import PatchLabelSampler
 from wholeslidedata.samplers.samplesampler import SampleSampler
-from wholeslidedata.samplers.structures import BatchShape
 
 from .wholeslideimage import MultiResWholeSlideImage
 from .files import MultiResWholeSlideImageFile
