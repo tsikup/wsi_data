@@ -323,14 +323,21 @@ class DatasetHDF5(Dataset):
         self.channels_last = channels_last
         self.h5_path = os.path.join(data_dir, data_name)
 
+        self.multiresolution = (
+            len(self.data_cols) > 2
+            if "labels" in self.data_cols
+            else len(self.data_cols) > 1
+        )
+        self.base_key = "target" if self.multiresolution else "images"
+
         assert os.path.isdir(data_dir), f"Directory {data_dir} does not exist"
         assert os.path.exists(self.h5_path), f"File {self.h5_path} does not exist"
 
         # determine dataset length and shape
         with h5py.File(self.h5_path, "r") as f:
-            assert "images" in self.data_cols, "key `images` not in data_cols"
-            self.dataset_size = f[self.data_cols["images"]].shape[0]
-            self.image_shape = f[self.data_cols["images"]].shape[1:]
+            assert self.base_key in self.data_cols, "key `images` not in data_cols"
+            self.dataset_size = f[self.data_cols[self.base_key]].shape[0]
+            self.image_shape = f[self.data_cols[self.base_key]].shape[1:]
             if not self.image_only:
                 assert "labels" in self.data_cols, "key `labels` not in data_cols"
                 self.labels_shape = (
@@ -342,7 +349,13 @@ class DatasetHDF5(Dataset):
 
     def open_hdf5(self):
         self.h5_dataset = h5py.File(self.h5_path, "r")
-        self.images = self.h5_dataset[self.data_cols["images"]]
+        if self.multiresolution:
+            self.images = dict()
+            for key in self.data_cols:
+                if key != "labels":
+                    self.images[key] = self.h5_dataset[self.data_cols[key]]
+        else:
+            self.images = self.h5_dataset[self.data_cols[self.base_key]]
         if not self.image_only:
             if self.data_cols["labels"] is not None:
                 self.labels = self.h5_dataset[self.data_cols["labels"]]
@@ -368,38 +381,89 @@ class DatasetHDF5(Dataset):
     def get_item(self, i):
         return self.__getitem__(i)
 
+    def transform_image_and_mask(self, image, mask=None):
+        if self.transform is not None:
+            if mask is None:
+                if self.multiresolution:
+                    args = "image=image['target']"
+                    for key in self.data_cols:
+                        if key != "labels" and key != "target":
+                            args += f", {key}=image['{key}']"
+                    transformed = eval(f"self.transform({args})")
+                    image = dict(target=transformed["image"])
+                    for key in transformed:
+                        if key != "image":
+                            image[key] = transformed[key]
+                else:
+                    transformed = self.transform(image=image)
+                    image = transformed["image"]
+            else:
+                if self.multiresolution:
+                    args = "image=image['target'], mask=mask"
+                    for key in self.data_cols:
+                        if key != "labels" and key != "target":
+                            args += f", {key}=image['{key}']"
+                    transformed = eval(f"self.transform({args})")
+                    mask = transformed["mask"]
+                    del transformed["mask"]
+                    image = dict(target=transformed["image"])
+                    for key in transformed:
+                        if key != "image":
+                            image[key] = transformed[key]
+                else:
+                    transformed = self.transform(image=image, mask=mask)
+                    image = transformed["image"]
+                    mask = transformed["mask"]
+
+        if self.pytorch_transform is not None:
+            if self.multiresolution:
+                raise NotImplementedError(
+                    "pytorch_transform not implemented for multiresolution yet"
+                )
+            if mask is None:
+                image = self.pytorch_transform(image)
+            else:
+                image, mask = self.pytorch_transform(img=image, mask=mask)
+        return image, mask
+
     def __getitem__(self, i):
         if not hasattr(self, "h5_dataset") or self.h5_dataset is None:
             self.open_hdf5()
 
-        image = self.images[i]
+        if self.multiresolution:
+            image = dict()
+            for key in self.data_cols:
+                if key != "labels":
+                    image[key] = self.images[key][i]
+        else:
+            image = self.images[i]
+
         if not self.image_only:
             try:
-                label = np.array([self.labels[i]])
+                label = np.array(self.labels[i])
             except IndexError:
-                label = np.array([self.labels[0]])
+                label = np.array(self.labels[0])
+
+            if label.shape == ():
+                label = label.reshape(-1)
 
         if not self.image_only and self.segmentation and len(label.shape) == 2:
             label = np.expand_dims(label, axis=-1)
 
         if self.segmentation and not self.image_only:
-            if self.transform is not None:
-                transformed = self.transform(image=image, mask=label)
-                image = transformed["image"]
-                label = transformed["mask"]
-            image, label = self.pytorch_transform(img=image, mask=label)
+            image, label = self.transform_image_and_mask(image, label)
         else:
-            if self.transform is not None:
-                transformed = self.transform(image=image)
-                image = transformed["image"]
+            image = self.transform_image_and_mask(image)
             if not self.image_only:
                 label = torch.from_numpy(label)
-            if self.pytorch_transform is not None:
-                image = self.pytorch_transform(image)
 
         # By default, ToTensorV2 returns C,H,W image and H,W,C mask
         if self.channels_last:
-            image = image.permute(1, 2, 0)
+            if self.multiresolution:
+                for key in image:
+                    image[key] = image[key].permute(1, 2, 0)
+            else:
+                image = image.permute(1, 2, 0)
         else:
             if self.segmentation and not self.image_only:
                 label = label.permute(2, 0, 1)
