@@ -151,7 +151,6 @@ class MultiResSampleSampler(SampleSampler):
         return patch, mask
 
 
-@AnnotationSampler.register(("randomonetime",))
 class RandomOneTimeAnnotationSampler(AnnotationSampler):
     def __init__(self, counts_per_label, seed):
         super().__init__(counts_per_label=counts_per_label, seed=seed)
@@ -179,7 +178,6 @@ class RandomOneTimeAnnotationSampler(AnnotationSampler):
         self.set_seed()
 
 
-@LabelSampler.register(("ordered_onetime",))
 class OrderedLabelOneTimeSampler(LabelSampler):
     def __init__(self, annotations_per_label: dict[str, int], seed: int = 123):
         labels = [
