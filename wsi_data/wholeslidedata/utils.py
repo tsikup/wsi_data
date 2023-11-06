@@ -212,7 +212,7 @@ def whole_slide_files_from_folder_factory(
         class_type = WholeSlideAnnotationFile
     all_sources = []
     folder = Path(folder)
-    for extension in class_type.EXTENSIONS.names():
+    for extension in class_type.EXTENSIONS.keys():
         paths = os_sorted(
             folder.rglob("*" + extension) if recursive else folder.glob("*" + extension)
         )
@@ -350,6 +350,7 @@ def get_files(
     ann_extension=".geojson",
     tiled=True,
     return_raw_annotation=False,
+    segmentation_labels=None,
 ):
     image_files = None
     annotation_files = None
@@ -400,13 +401,15 @@ def get_files(
         )
 
         if return_raw_annotation:
+            if segmentation_labels is None:
+                segmentation_labels = {"tissue": 1, "tumor": 2}
             raw_annotation_files = whole_slide_files_from_folder_factory(
                 annotations_dir,
                 "wsa",
                 excludes=["tif"],
                 filters=[ann_extension],
                 annotation_parser=parser(
-                    labels=labels,
+                    labels=segmentation_labels,
                     callbacks=None,
                 ),
             )
