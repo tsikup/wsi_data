@@ -211,7 +211,7 @@ class Single_WSI_Dataset(Dataset):
                     return dict.fromkeys(self.spacing.keys(), None)
             return o_data
         else:
-            return {
+            o_data = {
                 "target": {
                     "img_array": self._preprocess(
                         data,
@@ -221,6 +221,8 @@ class Single_WSI_Dataset(Dataset):
                     "x": annotation[0],
                     "y": annotation[1],
                     "spacing": self.spacing,
-                    "mask_array": mask,
                 }
             }
+            if self.segmentation:
+                o_data["target"]["mask_array"] = mask
+            return o_data
