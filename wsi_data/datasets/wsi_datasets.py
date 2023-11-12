@@ -207,8 +207,6 @@ class Single_WSI_Dataset(Dataset):
                 o_data[key]["spacing"] = self.spacing[key]
                 if self.segmentation:
                     o_data[key]["mask_array"] = mask[key]
-                if key == "target" and o_data[key]["img_array"] is None:
-                    return dict.fromkeys(self.spacing.keys(), None)
             return o_data
         else:
             o_data = {
