@@ -89,30 +89,30 @@ class FeatureDatasetHDF5(Dataset):
     @staticmethod
     def surv_collate(batch):
         data = []
-        censor = []
+        event = []
         survtime = []
         target = []
         slide_name = []
         for item in batch:
             data.append(item["features"])
-            censor.append(item["censor"])
+            event.append(item["event"])
             survtime.append(item["survtime"])
             target.append(item["labels"])
             slide_name.append(item["slide_name"])
-        censor = torch.vstack(censor)
+        event = torch.vstack(event)
         survtime = torch.vstack(survtime)
         target = torch.vstack(target)
         return {
             "features": data,
             "label": target,
-            "censor": censor,
+            "event": event,
             "survtime": survtime,
             "slide_name": slide_name,
         }
 
     def read_hdf5(self, h5_path, load_ram=False):
         def is_survival_data(_key: str):
-            return _key == "survtime" or _key == "censor" or _key == "status"
+            return _key == "survtime" or _key == "event" or _key == "status"
 
         assert os.path.exists(h5_path), f"{h5_path} does not exist"
 
@@ -140,12 +140,12 @@ class FeatureDatasetHDF5(Dataset):
                 survtime = h5_dataset[self.data_cols["survtime"]][0]
                 survtime = torch.from_numpy(np.array([survtime], dtype=float))
 
-                censor = h5_dataset[self.data_cols["censor"]][0]
-                censor = torch.from_numpy(np.array([censor], dtype=np.uint8))
+                event = h5_dataset[self.data_cols["event"]][0]
+                event = torch.from_numpy(np.array([event], dtype=np.uint8))
 
         features_dict["features"] = features_dict.pop("features_target")
         if survival:
-            return features_dict, label, survtime, censor
+            return features_dict, label, survtime, event
         return features_dict, label
 
     def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
@@ -187,12 +187,12 @@ class FeatureDatasetHDF5(Dataset):
                 "slide_name": Path(h5_path).name,
             }
         elif len(data) == 4:
-            features, label, survtime, censor = data
+            features, label, survtime, event = data
             return {
                 "features": features,
                 "labels": label,
                 "survtime": survtime,
-                "censor": censor,
+                "event": event,
                 "slide_name": Path(h5_path).name,
             }
 
