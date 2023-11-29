@@ -157,7 +157,7 @@ class FeatureDatasetHDF5(Dataset):
                 coords = np.concatenate(
                     [h5_dataset["coords_x"][...], h5_dataset["coords_y"][...]], axis=1
                 )
-                coords = torch.from_numpy(coords)
+                coords = torch.from_numpy(coords.astype(np.float32))
             else:
                 coords = None
 
