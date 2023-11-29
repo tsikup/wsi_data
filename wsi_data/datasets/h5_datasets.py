@@ -79,12 +79,19 @@ class FeatureDatasetHDF5(Dataset):
         data = []
         target = []
         slide_name = []
+        coords = []
         for item in batch:
             data.append(item["features"])
             target.append(item["labels"])
             slide_name.append(item["slide_name"])
+            coords.append(item["coords"])
         target = torch.vstack(target)
-        return data, target, slide_name
+        return {
+            "features": data,
+            "label": target,
+            "slide_name": slide_name,
+            "coords": coords,
+        }
 
     @staticmethod
     def surv_collate(batch):
@@ -93,12 +100,14 @@ class FeatureDatasetHDF5(Dataset):
         survtime = []
         target = []
         slide_name = []
+        coords = []
         for item in batch:
             data.append(item["features"])
             event.append(item["event"])
             survtime.append(item["survtime"])
             target.append(item["labels"])
             slide_name.append(item["slide_name"])
+            coords.append(item["coords"])
         event = torch.vstack(event)
         survtime = torch.vstack(survtime)
         target = torch.vstack(target)
@@ -108,6 +117,7 @@ class FeatureDatasetHDF5(Dataset):
             "event": event,
             "survtime": survtime,
             "slide_name": slide_name,
+            "coords": coords,
         }
 
     def read_hdf5(self, h5_path, load_ram=False):
@@ -143,10 +153,18 @@ class FeatureDatasetHDF5(Dataset):
                 event = h5_dataset[self.data_cols["event"]][0]
                 event = torch.from_numpy(np.array([event], dtype=np.uint8))
 
+            if "coords_x" in h5_dataset and "coords_y" in h5_dataset:
+                coords = np.concatenate(
+                    [h5_dataset["coords_x"][...], h5_dataset["coords_y"][...]], axis=1
+                )
+                coords = torch.from_numpy(coords)
+            else:
+                coords = None
+
         features_dict["features"] = features_dict.pop("features_target")
         if survival:
-            return features_dict, label, survtime, event
-        return features_dict, label
+            return features_dict, label, survtime, event, coords
+        return features_dict, label, coords
 
     def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
         import pandas as pd
@@ -179,21 +197,23 @@ class FeatureDatasetHDF5(Dataset):
     def __getitem__(self, i: int):
         h5_path = self.slides[i]
         data = self.read_hdf5(h5_path, load_ram=self.load_ram)
-        if len(data) == 2:
-            features, label = data
+        if len(data) == 3:
+            features, label, coords = data
             return {
                 "features": features,
                 "labels": label,
                 "slide_name": Path(h5_path).name,
+                "coords": coords,
             }
-        elif len(data) == 4:
-            features, label, survtime, event = data
+        elif len(data) == 5:
+            features, label, survtime, event, coords = data
             return {
                 "features": features,
                 "labels": label,
                 "survtime": survtime,
                 "event": event,
                 "slide_name": Path(h5_path).name,
+                "coords": coords,
             }
 
     def __len__(self):
