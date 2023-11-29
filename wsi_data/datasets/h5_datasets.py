@@ -159,7 +159,8 @@ class FeatureDatasetHDF5(Dataset):
                 )
                 coords = torch.from_numpy(coords.astype(np.float32))
             else:
-                coords = None
+                # TODO remove this hack
+                coords = -torch.ones(1, 2)
 
         features_dict["features"] = features_dict.pop("features_target")
         if survival:
