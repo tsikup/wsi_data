@@ -173,7 +173,7 @@ class FeatureDatasetHDF5(Dataset):
             with h5py.File(slide, "r") as f:
                 label = f[self.data_cols[label_key]][0]
                 labels.append(label)
-        return labels
+        return np.array(labels)
 
     def get_label_distribution(
         self, label_key: str = "labels", replace_names: Dict = None, as_figure=False
