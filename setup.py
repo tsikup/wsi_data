@@ -7,7 +7,12 @@ EXTRA_REQUIREMENTS = {
 setup(
     name="wsi_data",
     version="0.1.0",
-    packages=["wsi_data", "wsi_data.wholeslidedata", "wsi_data.datasets"],
+    packages=[
+        "wsi_data",
+        "wsi_data.wholeslidedata",
+        "wsi_data.datasets",
+        "wsi_data.samplers",
+    ],
     url="https://github.com/tsikup/wsi_data",
     license="MIT",
     author="Nikos Tsiknakis",
