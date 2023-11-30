@@ -167,24 +167,26 @@ class FeatureDatasetHDF5(Dataset):
             return features_dict, label, survtime, event, coords
         return features_dict, label, coords
 
-    def get_per_slide_labels(self):
+    def get_per_slide_labels(self, label_key: str = "labels"):
         labels = []
         for slide in self.slides:
             with h5py.File(slide, "r") as f:
-                label = f[self.data_cols["labels"]][0]
+                label = f[self.data_cols[label_key]][0]
                 labels.append(label)
         return labels
 
-    def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
+    def get_label_distribution(
+        self, label_key: str = "labels", replace_names: Dict = None, as_figure=False
+    ):
         import pandas as pd
         import seaborn as sns
 
-        labels = self.get_per_slide_labels()
+        labels = self.get_per_slide_labels(label_key)
         if as_figure:
-            labels = pd.DataFrame(labels, columns=["label"])
+            labels = pd.DataFrame(labels, columns=[label_key])
             if replace_names is not None:
                 labels.replace(replace_names, inplace=True)
-            fig = sns.displot(labels, x="label", shrink=0.8)
+            fig = sns.displot(labels, x=label_key, shrink=0.8)
             label_dist = fig.figure
         else:
             label_dist = np.unique(labels, return_counts=True)
