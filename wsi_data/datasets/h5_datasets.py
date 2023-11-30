@@ -188,7 +188,7 @@ class FeatureDatasetHDF5(Dataset):
             label_dist = fig.figure
         else:
             label_dist = np.unique(labels, return_counts=True)
-        return label_dist
+        return label_dist, labels
 
     def get_item_on_slide_name(self, slide_name: Union[str, Path], _data_dir=None):
         if _data_dir is None:
