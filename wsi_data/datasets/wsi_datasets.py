@@ -45,6 +45,7 @@ class Single_WSI_Dataset(Dataset):
         transform: Union[T.Compose, None] = None,
         filters2apply: Union[dict, None] = None,
         blurriness_threshold: Union[dict, int, None] = None,
+        bluriness_mode: str = None,
         tissue_percentage: Union[dict, int, None] = None,
         constant_pad_value: int = 230,
         segmentation: bool = False,
@@ -54,6 +55,12 @@ class Single_WSI_Dataset(Dataset):
         :param image_file: A WholeSlideImageFile object
         :param annotations: A list of WSDPolygon objects
         """
+        assert bluriness_mode in [
+            "masked",
+            "normalized",
+            None,
+        ], "Invalid bluriness mode. Valid options are `None`, `masked` and `normalized`."
+
         self.image_name = image_file.path.stem
         self.annotations = [ann.center for ann in annotations]
         self.dataset_size = len(annotations)
@@ -76,6 +83,7 @@ class Single_WSI_Dataset(Dataset):
         self.transform = transform
         self.filters2apply = filters2apply
         self.blurriness_threshold = blurriness_threshold
+        self.bluriness_mode = bluriness_mode
         self.tissue_percentage = tissue_percentage
         self.constant_pad_value = constant_pad_value
         self.segmentation = segmentation
@@ -134,7 +142,10 @@ class Single_WSI_Dataset(Dataset):
                 return None
 
         if blurriness_threshold is not None and is_blurry(
-            patch, threshold=blurriness_threshold, normalize=True
+            patch,
+            threshold=blurriness_threshold,
+            normalize=self.bluriness_mode == "normalized",
+            masked=self.bluriness_mode == "masked",
         ):
             return None
 
