@@ -157,7 +157,7 @@ class FeatureDatasetHDF5(Dataset):
                 if is_survival_data(key):
                     survival = True
                     continue
-                if key != "labels":
+                if not key.startswith("labels"):
                     features = h5_dataset[self.data_cols[key]]
                     features = torch.from_numpy(features[...]) if load_ram else features
                     features_dict[key] = features
@@ -168,6 +168,13 @@ class FeatureDatasetHDF5(Dataset):
             else:
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
+                
+            if "labels_aux" in self.data_cols:
+                label_aux = h5_dataset[self.data_cols["labels_aux"]][0]
+                label_aux = torch.from_numpy(np.array([label_aux], dtype=label_aux.dtype))
+            else:
+                label_aux = -100
+                label_aux = torch.from_numpy(np.array([label_aux], dtype=np.uint8))
 
             if survival:
                 survtime = h5_dataset[self.data_cols["survtime"]][0]
@@ -187,8 +194,8 @@ class FeatureDatasetHDF5(Dataset):
 
         features_dict["features"] = features_dict.pop("features_target")
         if survival:
-            return features_dict, label, survtime, event, coords
-        return features_dict, label, coords
+            return features_dict, label, survtime, event, coords, label_aux
+        return features_dict, label, coords, label_aux
 
     def get_per_slide_labels(self, label_key: str = "labels"):
         labels = []
@@ -227,19 +234,21 @@ class FeatureDatasetHDF5(Dataset):
     def __getitem__(self, i: int):
         h5_path = self.slides[i]
         data = self.read_hdf5(h5_path, load_ram=self.load_ram)
-        if len(data) == 3:
-            features, label, coords = data
+        if len(data) == 4:
+            features, label, coords, label_aux = data
             return {
                 "features": features,
                 "labels": label,
+                "labels_aux": label_aux,
                 "slide_name": Path(h5_path).name,
                 "coords": coords,
             }
-        elif len(data) == 5:
-            features, label, survtime, event, coords = data
+        elif len(data) == 6:
+            features, label, survtime, event, coords, label_aux = data
             return {
                 "features": features,
                 "labels": label,
+                "labels_aux": label_aux,
                 "survtime": survtime,
                 "event": event,
                 "slide_name": Path(h5_path).name,
