@@ -94,6 +94,29 @@ class FeatureDatasetHDF5(Dataset):
         }
 
     @staticmethod
+    def collate_fair(batch):
+        data = []
+        target = []
+        target_aux = []
+        slide_name = []
+        coords = []
+        for item in batch:
+            data.append(item["features"])
+            target.append(item["labels"])
+            target_aux.append(item["labels_aux"])
+            slide_name.append(item["slide_name"])
+            coords.append(item["coords"])
+        target = torch.vstack(target)
+        target_aux = torch.vstack(target_aux)
+        return {
+            "features": data,
+            "labels": target,
+            "labels_aux": target_aux,
+            "slide_name": slide_name,
+            "coords": coords,
+        }
+
+    @staticmethod
     def surv_collate(batch):
         data = []
         event = []
