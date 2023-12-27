@@ -162,17 +162,19 @@ class FeatureDatasetHDF5(Dataset):
                     features = torch.from_numpy(features[...]) if load_ram else features
                     features_dict[key] = features
 
-            if "labels" in self.data_cols:
+            try:
                 label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
                 label = torch.from_numpy(np.array([label], dtype=label.dtype))
-            else:
+            except KeyError:
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
-                
-            if "labels_aux" in self.data_cols:
+
+            try:
                 label_aux = h5_dataset[self.data_cols["labels_aux"]][0]
-                label_aux = torch.from_numpy(np.array([label_aux], dtype=label_aux.dtype))
-            else:
+                label_aux = torch.from_numpy(
+                    np.array([label_aux], dtype=label_aux.dtype)
+                )
+            except KeyError:
                 label_aux = -100
                 label_aux = torch.from_numpy(np.array([label_aux], dtype=np.uint8))
 
