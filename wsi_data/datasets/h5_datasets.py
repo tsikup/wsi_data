@@ -3,7 +3,7 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Union, List
 
 import albumentations as A
 import h5py
@@ -80,40 +80,48 @@ class FeatureDatasetHDF5(Dataset):
         target = []
         slide_name = []
         coords = []
+        indices = []
         for item in batch:
             data.append(item["features"])
             target.append(item["labels"])
             slide_name.append(item["slide_name"])
             coords.append(item["coords"])
+            indices.append(item["index"])
         target = torch.vstack(target)
+        indices = torch.vstack(indices)
         return {
             "features": data,
             "label": target,
             "slide_name": slide_name,
             "coords": coords,
+            "index": indices,
         }
 
     @staticmethod
     def collate_fair(batch):
         data = []
         target = []
-        target_aux = []
+        target_group = []
         slide_name = []
         coords = []
+        indices = []
         for item in batch:
             data.append(item["features"])
             target.append(item["labels"])
-            target_aux.append(item["labels_aux"])
+            target_group.append(item["labels_group"])
             slide_name.append(item["slide_name"])
             coords.append(item["coords"])
+            indices.append(item["index"])
         target = torch.vstack(target)
-        target_aux = torch.vstack(target_aux)
+        target_group = torch.vstack(target_group)
+        indices = torch.vstack(indices)
         return {
             "features": data,
             "labels": target,
-            "labels_aux": target_aux,
+            "labels_group": target_group,
             "slide_name": slide_name,
             "coords": coords,
+            "index": indices,
         }
 
     @staticmethod
@@ -124,6 +132,7 @@ class FeatureDatasetHDF5(Dataset):
         target = []
         slide_name = []
         coords = []
+        indices = []
         for item in batch:
             data.append(item["features"])
             event.append(item["event"])
@@ -131,9 +140,11 @@ class FeatureDatasetHDF5(Dataset):
             target.append(item["labels"])
             slide_name.append(item["slide_name"])
             coords.append(item["coords"])
+            indices.append(item["index"])
         event = torch.vstack(event)
         survtime = torch.vstack(survtime)
         target = torch.vstack(target)
+        indices = torch.vstack(indices)
         return {
             "features": data,
             "label": target,
@@ -141,6 +152,7 @@ class FeatureDatasetHDF5(Dataset):
             "survtime": survtime,
             "slide_name": slide_name,
             "coords": coords,
+            "index": indices,
         }
 
     def read_hdf5(self, h5_path, load_ram=False):
@@ -170,13 +182,13 @@ class FeatureDatasetHDF5(Dataset):
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
 
             try:
-                label_aux = h5_dataset[self.data_cols["labels_aux"]][0]
-                label_aux = torch.from_numpy(
-                    np.array([label_aux], dtype=label_aux.dtype)
+                label_group = h5_dataset[self.data_cols["labels_group"]][0]
+                label_group = torch.from_numpy(
+                    np.array([label_group], dtype=label_group.dtype)
                 )
-            except KeyError:
-                label_aux = -100
-                label_aux = torch.from_numpy(np.array([label_aux], dtype=np.uint8))
+            except (KeyError, TypeError) as e:
+                label_group = -100
+                label_group = torch.from_numpy(np.array([label_group], dtype=np.uint8))
 
             if survival:
                 survtime = h5_dataset[self.data_cols["survtime"]][0]
@@ -196,10 +208,10 @@ class FeatureDatasetHDF5(Dataset):
 
         features_dict["features"] = features_dict.pop("features_target")
         if survival:
-            return features_dict, label, survtime, event, coords, label_aux
-        return features_dict, label, coords, label_aux
+            return features_dict, label, survtime, event, coords, label_group
+        return features_dict, label, coords, label_group
 
-    def get_per_slide_labels(self, label_key: str = "labels"):
+    def get_labels(self, label_key: str = "labels"):
         labels = []
         for slide in self.slides:
             with h5py.File(slide, "r") as f:
@@ -208,20 +220,33 @@ class FeatureDatasetHDF5(Dataset):
         return np.array(labels)
 
     def get_label_distribution(
-        self, label_key: str = "labels", replace_names: Dict = None, as_figure=False
+        self,
+        label_key: Union[str, List[str]] = "labels",
+        replace_names: Dict = None,
+        as_figure=False,
     ):
         import pandas as pd
         import seaborn as sns
 
-        labels = self.get_per_slide_labels(label_key)
+        if isinstance(label_key, list):
+            labels = [self.get_labels(_label_key) for _label_key in label_key]
+        else:
+            labels = self.get_labels(label_key)
         if as_figure:
+            assert isinstance(label_key, str)
+            labels = self.get_labels(label_key)
             labels = pd.DataFrame(labels, columns=[label_key])
             if replace_names is not None:
                 labels.replace(replace_names, inplace=True)
             fig = sns.displot(labels, x=label_key, shrink=0.8)
             label_dist = fig.figure
         else:
-            label_dist = np.unique(labels, return_counts=True)
+            if isinstance(label_key, str):
+                label_dist = np.unique(labels, return_counts=True)
+            else:
+                label_dist = pd.DataFrame(labels, columns=label_key)
+                label_dist = label_dist.value_counts().sort_index()
+
         return label_dist, labels
 
     def get_item_on_slide_name(self, slide_name: Union[str, Path], _data_dir=None):
@@ -237,24 +262,26 @@ class FeatureDatasetHDF5(Dataset):
         h5_path = self.slides[i]
         data = self.read_hdf5(h5_path, load_ram=self.load_ram)
         if len(data) == 4:
-            features, label, coords, label_aux = data
+            features, label, coords, label_group = data
             return {
                 "features": features,
                 "labels": label,
-                "labels_aux": label_aux,
+                "labels_group": label_group,
                 "slide_name": Path(h5_path).name,
                 "coords": coords,
+                "index": i,
             }
         elif len(data) == 6:
-            features, label, survtime, event, coords, label_aux = data
+            features, label, survtime, event, coords, label_group = data
             return {
                 "features": features,
                 "labels": label,
-                "labels_aux": label_aux,
+                "labels_group": label_group,
                 "survtime": survtime,
                 "event": event,
                 "slide_name": Path(h5_path).name,
                 "coords": coords,
+                "index": i,
             }
 
     def __len__(self):
@@ -263,6 +290,12 @@ class FeatureDatasetHDF5(Dataset):
     @property
     def shape(self):
         return [self.dataset_size, self.features_shape]
+
+    @property
+    def n_groups(self):
+        if "labels_group" in self.data_cols:
+            return len(np.unique(self.get_labels("labels_group")))
+        return None
 
 
 class Single_H5_Image_Dataset(Dataset):
