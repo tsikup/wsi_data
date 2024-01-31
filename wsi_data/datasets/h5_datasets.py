@@ -91,7 +91,7 @@ class FeatureDatasetHDF5(Dataset):
         indices = torch.vstack(indices)
         return {
             "features": data,
-            "label": target,
+            "labels": target,
             "slide_name": slide_name,
             "coords": coords,
             "index": indices,
@@ -147,7 +147,7 @@ class FeatureDatasetHDF5(Dataset):
         indices = torch.vstack(indices)
         return {
             "features": data,
-            "label": target,
+            "labels": target,
             "event": event,
             "survtime": survtime,
             "slide_name": slide_name,
@@ -177,7 +177,7 @@ class FeatureDatasetHDF5(Dataset):
             try:
                 label = h5_dataset[self.data_cols["labels"]][0] - self.base_label
                 label = torch.from_numpy(np.array([label], dtype=label.dtype))
-            except KeyError:
+            except (KeyError, TypeError) as e:
                 label = -100
                 label = torch.from_numpy(np.array([label], dtype=np.uint8))
 
