@@ -15,7 +15,7 @@ def get_weighted_random_sampler(
     if isinstance(class_sample_count, list):
         class_sample_count = np.array(class_sample_count)
     weight = 1.0 / class_sample_count.astype(float)
-    samples_weight = torch.tensor([weight[t] for t in labels])
+    samples_weight = torch.tensor([weight[int(t)] for t in labels])
     return torch.utils.data.WeightedRandomSampler(
         weights=samples_weight, num_samples=len(samples_weight), replacement=replacement
     )
