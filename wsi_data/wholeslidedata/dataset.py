@@ -30,14 +30,14 @@ class MultiResWholeSlideDataSet(WholeSlideDataSet):
                 self.__class__.ANNOTATIONS_KEY: dict(),
             }
             for wsi_index, wsi_file in enumerate(
-                associated_files[MultiResWholeSlideImageFile]
+                associated_files["wsi"]
             ):
                 data[file_key][self.__class__.IMAGES_KEY][wsi_index] = self._open_image(
                     wsi_file
                 )
 
             for wsa_index, wsa_file in enumerate(
-                associated_files[WholeSlideAnnotationFile]
+                associated_files["wsa"]
             ):
                 data[file_key][self.__class__.ANNOTATIONS_KEY][
                     wsa_index

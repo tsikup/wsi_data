@@ -138,7 +138,7 @@ def create_batch_sampler(
         )
         if not random_annotations
         else RandomOneTimeAnnotationSampler(dataset.annotations_per_label, seed=seed),
-        point_sampler=CenterPointSampler(dataset=dataset, seed=seed),
+        point_sampler=CenterPointSampler(),
     )
 
     batch_shape = BatchShape(
