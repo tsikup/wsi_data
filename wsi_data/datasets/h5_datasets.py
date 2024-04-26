@@ -371,7 +371,11 @@ class Single_H5_Image_Dataset(Dataset):
                 image = self.pytorch_transform(image)
 
             if self.channels_last:
-                image = image.permute(1, 2, 0)
+                image = (
+                    image.permute(1, 2, 0)
+                    if isinstance(image, torch.Tensor)
+                    else np.moveaxis(image, 0, -1)
+                )
 
             images[res] = image
 
