@@ -234,7 +234,6 @@ class FeatureDatasetHDF5(Dataset):
             labels = self.get_labels(label_key)
         if as_figure:
             assert isinstance(label_key, str)
-            labels = self.get_labels(label_key)
             labels = pd.DataFrame(labels, columns=[label_key])
             if replace_names is not None:
                 labels.replace(replace_names, inplace=True)
@@ -244,6 +243,7 @@ class FeatureDatasetHDF5(Dataset):
             if isinstance(label_key, str):
                 label_dist = np.unique(labels, return_counts=True)
             else:
+                labels = np.array(labels).T
                 label_dist = pd.DataFrame(labels, columns=label_key)
                 label_dist = label_dist.value_counts().sort_index()
 
