@@ -387,10 +387,9 @@ def get_files(
                     overlap=int(tile_size * stride_overlap_percentage),
                     intersection_percentage=intersection_percentage,
                     full_coverage=True,
-                )
-                if tiled
-                else None,
-            ),
+                ),
+            ) if tiled
+            else None,
         )
         annotation_files = whole_slide_files_from_folder_factory(
             annotations_dir,

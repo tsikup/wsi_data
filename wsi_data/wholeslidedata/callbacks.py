@@ -71,7 +71,7 @@ class MaskedTiledAnnotationCallback(AnnotationCallback):
                                 == "GeometryCollection"
                             ):
                                 for intersection in box_poly.intersection(
-                                    annotation
+                                    annotation.geometry
                                 ).geoms:
                                     if intersection.geom_type == "Polygon":
                                         intersections.append(
