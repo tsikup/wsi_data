@@ -435,7 +435,7 @@ class DatasetHDF5(Dataset):
             if not self.image_only:
                 assert "labels" in self.data_cols, "key `labels` not in data_cols"
                 self.labels_shape = (
-                    f[self.data_cols["labels"]].shape[1:] if self.segmentation else 1
+                    f[self.data_cols["labels"][self.base_key]].shape[1:] if self.segmentation else 1
                 )
 
         self.transform = transform
@@ -452,7 +452,14 @@ class DatasetHDF5(Dataset):
             self.images = self.h5_dataset[self.data_cols[self.base_key]]
         if not self.image_only:
             if self.data_cols["labels"] is not None:
-                self.labels = self.h5_dataset[self.data_cols["labels"]]
+                if self.segmentation:
+                    self.labels = dict()
+                    for key in self.data_cols:
+                        if key == "labels":
+                            continue
+                        self.labels[key] = self.h5_dataset[self.data_cols["labels"][key]]
+                else:
+                    self.labels = self.h5_dataset[self.data_cols["labels"]]
 
     def get_label_distribution(self, replace_names: Dict = None, as_figure=False):
         import pandas as pd
@@ -460,9 +467,18 @@ class DatasetHDF5(Dataset):
 
         if self.data_cols["labels"] is not None:
             with h5py.File(self.h5_path, "r") as f:
+                if self.segmentation:
+                    labels = dict()
+                    for key in self.data_cols:
+                        if key == "labels":
+                            continue
+                        labels[key] = f[self.data_cols["labels"][key]][...]
                 labels = f[self.data_cols["labels"]][...]
                 if as_figure:
-                    labels = pd.DataFrame(labels, columns=["label"])
+                    if self.segmentation:
+                        labels = pd.DataFrame(labels)
+                    else:
+                        labels = pd.DataFrame(labels, columns=["label"])
                     if replace_names is not None:
                         labels.replace(replace_names, inplace=True)
                     fig = sns.displot(labels, x="label", shrink=0.8)
@@ -493,17 +509,19 @@ class DatasetHDF5(Dataset):
                     image = transformed["image"]
             else:
                 if self.multiresolution:
-                    args = "image=image['target'], mask=mask"
+                    args = "image=image['target'], mask=mask['target']"
                     for key in self.data_cols:
                         if key != "labels" and key != "target":
-                            args += f", {key}=image['{key}']"
+                            args += f", {key}=image['{key}'], {key}_mask=mask['{key}']"
                     transformed = eval(f"self.transform({args})")
-                    mask = transformed["mask"]
-                    del transformed["mask"]
+                    # mask = transformed["mask"]
+                    # del transformed["mask"]
                     image = dict(target=transformed["image"])
+                    mask = dict(target=transformed["mask"])
                     for key in transformed:
                         if key != "image":
                             image[key] = transformed[key]
+                            mask[key] = transformed[f"{key}_mask"]
                 else:
                     transformed = self.transform(image=image, mask=mask)
                     image = transformed["image"]
@@ -533,23 +551,45 @@ class DatasetHDF5(Dataset):
             image = self.images[i]
 
         if not self.image_only:
-            try:
-                label = np.array(self.labels[i])
-            except IndexError:
-                label = np.array(self.labels[0])
 
-            if label.shape == ():
+            if self.segmentation:
+                if self.multiresolution:
+                    label = dict()
+                    for key in self.data_cols:
+                        if key == "labels":
+                            continue
+                        label[key] = self.labels[key][i]
+                else:
+                    label = self.labels[i]
+            else:
+                try:
+                    label = np.array(self.labels[i])
+                except IndexError:
+                    label = np.array(self.labels[0])
+
+            if label.shape == () and not self.segmentation:
                 label = label.reshape(-1)
 
-        if not self.image_only and self.segmentation and len(label.shape) == 2:
-            label = np.expand_dims(label, axis=-1)
+        if not self.image_only and self.segmentation:
+            if self.multiresolution:
+                for key in label:
+                    if len(label[key].shape) == 2:
+                        label[key] = np.expand_dims(label[key], axis=-1)
+            else:
+                if len(label.shape) == 2:
+                    label = np.expand_dims(label, axis=-1)
 
         if self.segmentation and not self.image_only:
             image, label = self.transform_image_and_mask(image, label)
+            if self.multiresolution:
+                for key in label:
+                    label[key] = label[key].to(torch.uint8)
+            else:
+                label = label.to(torch.uint8)
         else:
             image = self.transform_image_and_mask(image)
             if not self.image_only:
-                label = torch.from_numpy(label)
+                label = torch.from_numpy(label).to(torch.uint8)
 
         # By default, ToTensorV2 returns C,H,W image and H,W,C mask
         if self.channels_last:
@@ -560,12 +600,16 @@ class DatasetHDF5(Dataset):
                 image = image.permute(1, 2, 0)
         else:
             if self.segmentation and not self.image_only:
-                label = label.permute(2, 0, 1)
+                if self.multiresolution:
+                    for key in label:
+                        label[key] = label[key].permute(2, 0, 1)
+                else:
+                    label = label.permute(2, 0, 1)
 
         if self.image_only:
             return image
 
-        return image, label.to(torch.uint8)
+        return image, label
 
     def __len__(self):
         return self.dataset_size
