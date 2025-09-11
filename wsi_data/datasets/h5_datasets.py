@@ -567,7 +567,7 @@ class DatasetHDF5(Dataset):
                 except IndexError:
                     label = np.array(self.labels[0])
 
-            if label.shape == () and not self.segmentation:
+            if not self.segmentation and label.shape == ():
                 label = label.reshape(-1)
 
         if not self.image_only and self.segmentation:
