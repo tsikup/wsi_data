@@ -308,14 +308,12 @@ class Single_H5_Image_Dataset(Dataset):
         h5_file: str = None,
         image_regex: str = "^x_",
         transform: Union[A.Compose, None] = None,
-        pytorch_transform: Union[T.Compose, None] = None,
         channels_last: bool = False,
     ):
         """
         :param h5_file: hdf5 filename
         :param image_regex: regex to match image columns
         :param transform: albumentations image transform pipeline
-        :param pytorch_transform: pytorch image transform pipeline
         :param channels_last: return tensor with channels at last index
         """
         if isinstance(h5_file, str):
@@ -339,8 +337,6 @@ class Single_H5_Image_Dataset(Dataset):
 
         # Albumentations transformation pipeline for the image (normalizing, etc.)
         self.transform = transform
-        # Pytorch transformation pipeline for the image
-        self.pytorch_transform = pytorch_transform
 
     def open_hdf5(self):
         self.h5_dataset = h5py.File(self.h5_file, "r")
@@ -367,9 +363,6 @@ class Single_H5_Image_Dataset(Dataset):
                 transformed = self.transform(image=image)
                 image = transformed["image"]
 
-            if self.pytorch_transform is not None:
-                image = self.pytorch_transform(image)
-
             if self.channels_last:
                 image = image.permute(1, 2, 0)
 
@@ -392,7 +385,7 @@ class DatasetHDF5(Dataset):
         data_name: str,
         data_cols: Dict[str, str],
         transform: Union[A.Compose, None],
-        pytorch_transform: Union[T.Compose, None],
+        mask_transform: Union[A.Compose, None] = None,
         channels_last: bool = False,
         segmentation: bool = True,
         image_only: bool = False,
@@ -402,7 +395,6 @@ class DatasetHDF5(Dataset):
         :param data_name: hdf5 filename
         :param data_cols: dictionary with h5 dataset names for images, labels
         :param transform: albumentations image transform pipeline
-        :param pytorch_transform: pytorch image transform pipeline
         :param channels_last: return tensor with channels at last index
         :param segmentation: segmentation dataset
         :param image_only: return only images
@@ -439,7 +431,7 @@ class DatasetHDF5(Dataset):
                 )
 
         self.transform = transform
-        self.pytorch_transform = pytorch_transform
+        self.mask_transform = mask_transform
 
     def open_hdf5(self):
         self.h5_dataset = h5py.File(self.h5_path, "r")
@@ -491,51 +483,122 @@ class DatasetHDF5(Dataset):
     def get_item(self, i):
         return self.__getitem__(i)
 
-    def transform_image_and_mask(self, image, mask=None):
-        if self.transform is not None:
-            if mask is None:
-                if self.multiresolution:
-                    args = "image=image['target']"
-                    for key in self.data_cols:
-                        if key != "labels" and key != "target":
-                            args += f", {key}=image['{key}']"
-                    transformed = eval(f"self.transform({args})")
-                    image = dict(target=transformed["image"])
-                    for key in transformed:
-                        if key != "image":
-                            image[key] = transformed[key]
-                else:
-                    transformed = self.transform(image=image)
-                    image = transformed["image"]
-            else:
-                if self.multiresolution:
-                    args = "image=image['target'], mask=mask['target']"
-                    for key in self.data_cols:
-                        if key != "labels" and key != "target":
-                            args += f", {key}=image['{key}'], {key}_mask=mask['{key}']"
-                    transformed = eval(f"self.transform({args})")
-                    # mask = transformed["mask"]
-                    # del transformed["mask"]
-                    image = dict(target=transformed["image"])
-                    mask = dict(target=transformed["mask"])
-                    for key in transformed:
-                        if key != "image":
-                            image[key] = transformed[key]
-                            mask[key] = transformed[f"{key}_mask"]
-                else:
-                    transformed = self.transform(image=image, mask=mask)
-                    image = transformed["image"]
-                    mask = transformed["mask"]
+    def _build_multires_kwargs(self, image, mask):
+        """Build kwargs for self.transform in multiresolution mode."""
+        kwargs = {"image": image["target"]}
+        if mask is not None:
+            kwargs["mask"] = mask["target"]
 
-        if self.pytorch_transform is not None:
-            if self.multiresolution:
-                raise NotImplementedError(
-                    "pytorch_transform not implemented for multiresolution yet"
-                )
-            if mask is None:
-                image = self.pytorch_transform(image)
+        for key in self.data_cols:
+            if key in ("labels", "target"):
+                continue
+            kwargs[key] = image[key]
+            if mask is not None:
+                kwargs[f"{key}_mask"] = mask[key]
+
+        return kwargs
+    
+    def _split_multires_output(self, transformed):
+        """
+        Split multires transform output into (image_dict, mask_dict or None),
+        and apply self.mask_transform to all masks if present.
+        """
+        transformed = dict(transformed)  # copy so we can pop safely
+
+        # normalize main mask to 'target_mask' so we can treat it uniformly
+        if "mask" in transformed:
+            transformed["target_mask"] = transformed.pop("mask")
+
+        image_out = {"target": transformed["image"]}
+        mask_out = {}
+
+        for k, v in transformed.items():
+            if k in ("image", "labels"):
+                continue
+
+            if k.endswith("_mask"):
+                m = v
+                if self.mask_transform is not None:
+                    m = self.mask_transform(image=m)["image"]
+                mask_out[k] = m
             else:
-                image, mask = self.pytorch_transform(img=image, mask=mask)
+                image_out[k] = v
+
+        if not mask_out:
+            mask_out = None
+
+        return image_out, mask_out
+    
+    def _apply_main_transform(self, image, mask):
+        """Apply self.transform (and mask_transform if coupled), return (image, mask)."""
+        if self.transform is None:
+            return image, mask
+
+        if self.multiresolution:
+            kwargs = self._build_multires_kwargs(image, mask)
+            transformed = self.transform(**kwargs)
+            return self._split_multires_output(transformed)
+
+        # single resolution
+        if mask is None:
+            out = self.transform(image=image)
+            return out["image"], None
+
+        out = self.transform(image=image, mask=mask)
+        image, mask = out["image"], out["mask"]
+
+        if self.mask_transform is not None and mask is not None:
+            mask = self.mask_transform(image=mask)["image"]
+
+        return image, mask
+    
+    def _apply_mask_transform_only(self, mask):
+        """Apply self.mask_transform when no main transform is used."""
+        if self.mask_transform is None or mask is None:
+            return mask
+
+        if not self.multiresolution:
+            return self.mask_transform(image=mask)["image"]
+
+        # multires: dict of masks
+        out = {}
+        for k, v in mask.items():
+            out[k] = self.mask_transform(image=v)["image"]
+        return out
+    
+    def _to_tensors(self, image, mask):
+        """Final conversion: image -> float tensor, mask -> uint8 tensor."""
+        to_tensor = T.ToTensor()
+
+        if not self.multiresolution:
+            image = to_tensor(image)
+            if mask is not None:
+                mask = torch.from_numpy(mask).to(torch.uint8)
+            return image, mask
+
+        # multires: dicts
+        image = {k: to_tensor(v) for k, v in image.items()}
+
+        if mask is not None:
+            # remove `_mask` suffix when returning
+            mask = {
+                k.replace("_mask", ""): torch.from_numpy(v).to(torch.uint8)
+                for k, v in mask.items()
+            }
+
+        return image, mask
+
+    def transform_image_and_mask(self, image, mask=None):
+        # 1. main transform (albumentations-style)
+        image, mask = self._apply_main_transform(image, mask)
+
+        # 2. optional mask-only transform when no main transform was used
+        if self.transform is None:
+            mask = self._apply_mask_transform_only(mask)
+
+        # 3. final tensor conversion
+        image, mask = self._to_tensors(image, mask)
+
         return image, mask
 
     def __getitem__(self, i):
@@ -583,28 +646,35 @@ class DatasetHDF5(Dataset):
             image, label = self.transform_image_and_mask(image, label)
             if self.multiresolution:
                 for key in label:
-                    label[key] = label[key].to(torch.uint8)
+                    if not isinstance(label[key], torch.Tensor):
+                        label[key] = torch.from_numpy(label[key]).to(torch.uint8)
             else:
-                label = label.to(torch.uint8)
+                if not isinstance(label, torch.Tensor):
+                    label = torch.from_numpy(label).to(torch.uint8)
         else:
             image = self.transform_image_and_mask(image)
             if not self.image_only:
-                label = torch.from_numpy(label).to(torch.uint8)
+                if not isinstance(label, torch.Tensor):
+                    label = torch.from_numpy(label).to(torch.uint8)
 
         # By default, ToTensorV2 returns C,H,W image and H,W,C mask
         if self.channels_last:
             if self.multiresolution:
                 for key in image:
                     image[key] = image[key].permute(1, 2, 0)
+                    if self.segmentation and not self.image_only:
+                        label[key] = label[key].permute(1, 2, 0)
             else:
                 image = image.permute(1, 2, 0)
-        else:
-            if self.segmentation and not self.image_only:
-                if self.multiresolution:
-                    for key in label:
-                        label[key] = label[key].permute(2, 0, 1)
-                else:
-                    label = label.permute(2, 0, 1)
+                if self.segmentation and not self.image_only:
+                    label = label.permute(1, 2, 0)
+        # else:
+        #     if self.segmentation and not self.image_only:
+        #         if self.multiresolution:
+        #             for key in label:
+        #                 label[key] = label[key].permute(2, 0, 1)
+        #         else:
+        #             label = label.permute(2, 0, 1)
 
         if self.image_only:
             return image
@@ -622,7 +692,6 @@ class ImageOnlyDatasetHDF5(DatasetHDF5):
         data_name: str,
         data_cols: Dict[str, str],
         transform: Union[A.Compose, None],
-        pytorch_transform: Union[T.Compose, None],
         channels_last=False,
     ):
         super(ImageOnlyDatasetHDF5, self).__init__(
@@ -630,7 +699,6 @@ class ImageOnlyDatasetHDF5(DatasetHDF5):
             data_name=data_name,
             data_cols=data_cols,
             transform=transform,
-            pytorch_transform=pytorch_transform,
             channels_last=channels_last,
             image_only=True,
         )
@@ -643,7 +711,7 @@ class SegmentationDatasetHDF5(DatasetHDF5):
         data_name: str,
         data_cols: Dict[str, str],
         transform: Union[A.Compose, None],
-        pytorch_transform: Union[T.Compose, None],
+        mask_transform: Union[A.Compose, None] = None,
         channels_last=False,
     ):
         super(SegmentationDatasetHDF5, self).__init__(
@@ -651,7 +719,7 @@ class SegmentationDatasetHDF5(DatasetHDF5):
             data_name=data_name,
             data_cols=data_cols,
             transform=transform,
-            pytorch_transform=pytorch_transform,
+            mask_transform=mask_transform,
             channels_last=channels_last,
             segmentation=True,
         )
@@ -664,7 +732,6 @@ class ClassificationDatasetHDF5(DatasetHDF5):
         data_name: str,
         data_cols: Dict[str, str],
         transform: Union[A.Compose, None],
-        pytorch_transform: Union[T.Compose, None],
         channels_last=False,
     ):
         super(ClassificationDatasetHDF5, self).__init__(
@@ -672,7 +739,6 @@ class ClassificationDatasetHDF5(DatasetHDF5):
             data_name=data_name,
             data_cols=data_cols,
             transform=transform,
-            pytorch_transform=pytorch_transform,
             channels_last=channels_last,
             segmentation=False,
         )
