@@ -307,6 +307,7 @@ class Single_H5_Image_Dataset(Dataset):
         self,
         h5_file: str = None,
         image_regex: str = "^x_",
+        data_cols: List = None,
         transform: Union[A.Compose, None] = None,
         channels_last: bool = False,
     ):
@@ -321,17 +322,19 @@ class Single_H5_Image_Dataset(Dataset):
 
         self.h5_file = h5_file
         self.h5_dataset = None
-        self.images = None
+        self.data = None
 
         # Return tensor with channels at last index
         self.channels_last = channels_last
 
         # determine dataset length and shape
         with h5py.File(h5_file, "r") as f:
-            # Total number of datapoints
-            spacings = f.keys()
-            p = re.compile(image_regex)
-            self.data_cols = [s for s in spacings if p.match(s)]
+            if data_cols is None:
+                spacings = f.keys()
+                p = re.compile(image_regex)
+                self.data_cols = [s for s in spacings if p.match(s)]
+            else:
+                self.data_cols = data_cols
             self.dataset_size = f[self.data_cols[0]].shape[0]
             self.image_shape = f[self.data_cols[0]].shape[1:]
 
@@ -340,9 +343,9 @@ class Single_H5_Image_Dataset(Dataset):
 
     def open_hdf5(self):
         self.h5_dataset = h5py.File(self.h5_file, "r")
-        self.images = dict()
+        self.data = dict()
         for res in self.data_cols:
-            self.images[res] = self.h5_dataset[res]
+            self.data[res] = self.h5_dataset[res]
 
     def close(self):
         if self.h5_dataset is not None:
@@ -355,20 +358,20 @@ class Single_H5_Image_Dataset(Dataset):
         if not hasattr(self, "h5_dataset") or self.h5_dataset is None:
             self.open_hdf5()
 
-        images = dict()
+        data = dict()
         for res in self.data_cols:
-            image = self.images[res][i]
+            _data = self.data[res][i]
 
             if self.transform is not None:
-                transformed = self.transform(image=image)
-                image = transformed["image"]
+                transformed = self.transform(image=_data)
+                _data = transformed["image"]
 
             if self.channels_last:
-                image = image.permute(1, 2, 0)
+                _data = _data.permute(1, 2, 0)
 
-            images[res] = image
+            data[res] = _data
 
-        return images
+        return data
 
     def __len__(self):
         return self.dataset_size
