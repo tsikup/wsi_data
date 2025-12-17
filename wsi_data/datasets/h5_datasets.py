@@ -327,12 +327,15 @@ class Single_H5_Image_Dataset(Dataset):
         # Return tensor with channels at last index
         self.channels_last = channels_last
 
+        self.image_keys = None
+
         # determine dataset length and shape
         with h5py.File(h5_file, "r") as f:
+            spacings = f.keys()
+            p = re.compile(image_regex)
+            self.image_keys = [s for s in spacings if p.match(s)]
             if data_cols is None:
-                spacings = f.keys()
-                p = re.compile(image_regex)
-                self.data_cols = [s for s in spacings if p.match(s)]
+                self.data_cols = self.image_keys
             else:
                 self.data_cols = data_cols
             self.dataset_size = f[self.data_cols[0]].shape[0]
@@ -358,18 +361,22 @@ class Single_H5_Image_Dataset(Dataset):
         if not hasattr(self, "h5_dataset") or self.h5_dataset is None:
             self.open_hdf5()
 
+        _image_keys = []
         data = dict()
         for res in self.data_cols:
             _data = self.data[res][i]
-
-            if self.transform is not None:
-                transformed = self.transform(image=_data)
-                _data = transformed["image"]
-
-            if self.channels_last:
-                _data = _data.permute(1, 2, 0)
-
+            # if self.channels_last:
+            #     _data = _data.permute(1, 2, 0)
             data[res] = _data
+
+        if self.transform is not None:
+            kwargs = {"image": data[self.image_keys[0]]}
+            for res in self.image_keys:
+                kwargs[res] = data[res]
+            transformed = self.transform(**kwargs)
+            transformed = dict(transformed)
+            for res in self.image_keys:
+                data[res] = transformed[res]
 
         return data
 
