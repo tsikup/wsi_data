@@ -399,6 +399,7 @@ class DatasetHDF5(Dataset):
         channels_last: bool = False,
         segmentation: bool = True,
         image_only: bool = False,
+        merge_labels: dict = {},
     ):
         """
         :param data_dir: hdf5 folder
@@ -412,6 +413,8 @@ class DatasetHDF5(Dataset):
         self.h5_dataset = None
         self.images = None
         self.labels = None
+
+        self.merge_labels = merge_labels
 
         self.data_cols = data_cols
         self.image_only = image_only
@@ -689,6 +692,14 @@ class DatasetHDF5(Dataset):
         if self.image_only:
             return image
 
+        if self.segmentation and self.merge_labels != {}:
+            for k, v in self.merge_labels.items():
+                if self.multiresolution:
+                    for r in label.keys():
+                        label[r][label[r] == k] = v
+                else:
+                    label[label == k] = v
+
         return image, label
 
     def __len__(self):
@@ -723,6 +734,7 @@ class SegmentationDatasetHDF5(DatasetHDF5):
         transform: Union[A.Compose, None],
         mask_transform: Union[A.Compose, None] = None,
         channels_last=False,
+        merge_labels: dict = {}
     ):
         super(SegmentationDatasetHDF5, self).__init__(
             data_dir=data_dir,
@@ -732,6 +744,7 @@ class SegmentationDatasetHDF5(DatasetHDF5):
             mask_transform=mask_transform,
             channels_last=channels_last,
             segmentation=True,
+            merge_labels=merge_labels,
         )
 
 
