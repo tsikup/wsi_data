@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
+import albumentations as A
 from wholeslidedata import WholeSlideAnnotation
 from wholeslidedata.annotation.types import PolygonAnnotation as WSDPolygon
 from wholeslidedata.data.files import WholeSlideAnnotationFile
@@ -159,7 +160,10 @@ class Single_WSI_Dataset(Dataset):
             )
 
         if self.transform is not None:
-            patch = self.transform(patch)
+            if isinstance(self.transform, A.Compose):
+                pass
+            else:
+                patch = self.transform(patch)
 
         return patch
 
@@ -202,7 +206,9 @@ class Single_WSI_Dataset(Dataset):
 
         if self.multires:
             o_data = dict()
+            image_keys = []
             for key in data.keys():
+                image_keys.append(key)
                 o_data[key] = dict()
                 o_data[key]["img_array"] = self._preprocess(
                     data[key],
@@ -218,6 +224,19 @@ class Single_WSI_Dataset(Dataset):
                 o_data[key]["spacing"] = self.spacing[key]
                 if self.segmentation:
                     o_data[key]["mask_array"] = mask[key]
+            if self.transform is not None and isinstance(self.transform, A.Compose):
+                kwargs = {"image": o_data['target']["img_array"]}
+                for res in image_keys:
+                    if res == 'target':
+                        continue
+                    kwargs[res] = o_data[res]["img_array"]
+                transformed = self.transform(**kwargs)
+                transformed = dict(transformed)
+                for res in image_keys:
+                    if res == 'target':
+                        o_data['target']["img_array"] = transformed['image']
+                    else:
+                        o_data[res]["img_array"] = transformed[res]
             return o_data
         else:
             o_data = {

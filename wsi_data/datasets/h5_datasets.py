@@ -179,7 +179,7 @@ class FeatureDatasetHDF5(Dataset):
                 label = torch.from_numpy(np.array([label], dtype=label.dtype))
             except (KeyError, TypeError) as e:
                 label = -100
-                label = torch.from_numpy(np.array([label], dtype=np.uint8))
+                label = torch.from_numpy(np.array([label]))
 
             try:
                 label_group = h5_dataset[self.data_cols["labels_group"]][0]
@@ -188,7 +188,7 @@ class FeatureDatasetHDF5(Dataset):
                 )
             except (KeyError, TypeError) as e:
                 label_group = -100
-                label_group = torch.from_numpy(np.array([label_group], dtype=np.uint8))
+                label_group = torch.from_numpy(np.array([label_group]))
 
             if survival:
                 survtime = h5_dataset[self.data_cols["survtime"]][0]
