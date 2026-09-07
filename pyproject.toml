@@ -1,0 +1,270 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wsi-data"
+version = "1.0.0"
+description = "Dataset, sampler and augmentation library for whole-slide image deep learning."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Nikos Tsiknakis", email = "tsiknakisn@gmail.com" }]
+keywords = [
+  "histopathology",
+  "whole-slide-imaging",
+  "digital-pathology",
+  "pytorch",
+  "dataset",
+  "hdf5",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "Topic :: Scientific/Engineering :: Image Processing",
+  "Typing :: Typed",
+]
+
+# `opencv-python-headless` (not `opencv-python`): both he-preprocessing and
+# wholeslidedata require the headless build. Note this only pins wsi-data's
+# own direct requirement -- he-preprocessing[slide]'s own `tissueloc`
+# dependency hard-requires plain `opencv-python`, so both distributions can
+# still end up installed side by side (there is no packaging-level way to
+# override a transitive dependency's own distribution name). In an ordinary
+# virtualenv this is usually harmless, since only the second one installed
+# leaves its `cv2` files in place; it becomes a real problem -- `OMP: Error
+# #15` aborting the interpreter at import -- only where both are
+# simultaneously importable, e.g. a venv created with --system-site-packages
+# over a conda base environment that already has OpenCV. If you hit that,
+# `pip uninstall opencv-python` (keeping the headless build) resolves it.
+dependencies = [
+  "albumentations>=2.0",
+  "h5py>=3.10",
+  "he-preprocessing[slide]>=1.0.0",
+  "natsort>=8.4",
+  "numpy>=2.0",
+  "opencv-python-headless>=4.9",
+  "pillow>=10.2",
+  "scikit-image>=0.23",
+  "scipy>=1.11",
+  "shapely>=2.0",
+  "sourcelib>=0.0.4",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "wholeslidedata>=0.1.0",
+]
+
+[project.optional-dependencies]
+# Label-distribution plotting only, and matplotlib alone: label counts come
+# from `numpy.unique` in LabelDistribution, so the pre-1.0 seaborn + pandas
+# pair is no longer needed to render them. Kept optional so that importing a
+# dataset class never drags in a plotting stack.
+viz = ["matplotlib>=3.8"]
+dev = [
+  "wsi-data[viz]",
+  "hypothesis>=6.100",
+  "mypy>=1.13",
+  "pre-commit>=4.0",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/tsikup/wsi_data"
+Repository = "https://github.com/tsikup/wsi_data"
+Issues = "https://github.com/tsikup/wsi_data/issues"
+
+# `he-preprocessing` and `wholeslidedata` are not published on PyPI:
+# he-preprocessing is a first-party package, and the code requires a fork of
+# wholeslidedata (PyPI 0.0.16 predates the `interoperability` package layout
+# this library imports). Both resolve from git for anyone installing with
+# `--find-links`-free pip; see README for the install command.
+[tool.uv.sources]
+he-preprocessing = { git = "https://github.com/tsikup/he_preprocessing.git" }
+wholeslidedata = { git = "https://github.com/tsikup/pathology-whole-slide-data.git" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wsi_data"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "README.md", "LICENSE", "MIGRATION.md"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "A",     # flake8-builtins
+  "ANN",   # flake8-annotations
+  "ARG",   # flake8-unused-arguments
+  "B",     # flake8-bugbear
+  "BLE",   # flake8-blind-except
+  "C4",    # flake8-comprehensions
+  "D",     # pydocstyle
+  "DTZ",   # flake8-datetimez
+  "E",     # pycodestyle errors
+  "EM",    # flake8-errmsg
+  "ERA",   # eradicate (commented-out code)
+  "F",     # pyflakes
+  "FBT",   # flake8-boolean-trap
+  "FURB",  # refurb
+  "I",     # isort
+  "ICN",   # flake8-import-conventions
+  "ISC",   # flake8-implicit-str-concat
+  "LOG",   # flake8-logging
+  "N",     # pep8-naming
+  "NPY",   # numpy-specific rules (incl. NPY201 numpy-2 migration)
+  "PERF",  # perflint
+  "PGH",   # pygrep-hooks
+  "PIE",   # flake8-pie
+  "PL",    # pylint
+  "PT",    # flake8-pytest-style
+  "PTH",   # flake8-use-pathlib
+  "RET",   # flake8-return
+  "RSE",   # flake8-raise
+  "RUF",   # ruff-specific rules
+  "S",     # flake8-bandit
+  "SIM",   # flake8-simplify
+  "SLF",   # flake8-self
+  "T20",   # flake8-print
+  "TC",    # flake8-type-checking
+  "TID",   # flake8-tidy-imports
+  "TRY",   # tryceratops
+  "UP",    # pyupgrade
+  "W",     # pycodestyle warnings
+]
+ignore = [
+  "ANN401",  # allow typing.Any where genuinely dynamic
+  "COM812",  # conflicts with the formatter
+  "D105",    # magic methods need no docstring
+  "D107",    # __init__ documented on the class
+  "ISC001",  # conflicts with the formatter
+  "N812",    # `import albumentations as A` / `torchvision.transforms as T`
+             # are each library's own documented convention, like `np`/`pd`
+  "PLC0415", # heavy/optional third-party imports (matplotlib in wsi_data.viz)
+             # are deliberately deferred to point of use, so importing a
+             # dataset class never drags in a plotting stack
+  "PLR0913", # dataset/augmentation constructors legitimately take many params
+  "S101",    # asserts are used for internal invariants
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.isort]
+known-first-party = ["wsi_data"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "D", "PLR2004", "S", "SLF"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+# Pinned to the newest supported interpreter rather than the `>=3.11`
+# packaging floor: numpy's bundled stubs use PEP 695 `type` statements that
+# mypy only parses under python_version 3.12+.
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+warn_no_return = true
+# The whole-slide stack this package wraps ships no py.typed marker:
+# wholeslidedata, sourcelib, cv2, skimage and albumentations are all
+# untyped, so every call into them counts as "untyped" regardless of
+# ignore_missing_imports. This package exists to wrap them, so enabling
+# disallow_untyped_calls would flag nearly every function in it.
+# no-any-return stays on, so our own declared return types are still
+# enforced at the boundary.
+disallow_untyped_calls = false
+enable_error_code = [
+  "ignore-without-code",
+  "redundant-expr",
+  "truthy-bool",
+  "possibly-undefined",
+]
+
+[[tool.mypy.overrides]]
+# `he_preprocessing` and `wholeslidedata` are themselves typed (the former
+# strictly so), so this does not weaken checking against them in an
+# environment that has them installed -- ignore_missing_imports only takes
+# effect as a fallback when a module cannot be found at all, which is the
+# case in the pre-commit mypy hook's isolated environment (a private git
+# dependency is impractical to install there) but not in CI or local dev.
+module = [
+  "albumentations.*",
+  "cv2.*",
+  "h5py.*",
+  "he_preprocessing.*",
+  "natsort.*",
+  "scipy.*",
+  "shapely.*",
+  "skimage.*",
+  "sourcelib.*",
+  "torchvision.*",
+  "wholeslidedata.*",
+]
+ignore_missing_imports = true
+
+# These modules subclass a base class from an untyped dependency
+# (wholeslidedata or albumentations). With no stubs upstream, mypy sees the
+# base class itself as `Any`, and subclassing `Any` always raises `[misc]`
+# regardless of `ignore_missing_imports` -- there is no way to satisfy this
+# short of writing and maintaining stubs for those dependencies.
+[[tool.mypy.overrides]]
+module = [
+  "wsi_data.augmentations",
+  "wsi_data.wholeslidedata.callbacks",
+  "wsi_data.wholeslidedata.dataset",
+  "wsi_data.wholeslidedata.files",
+  "wsi_data.wholeslidedata.samplers",
+  "wsi_data.wholeslidedata.wholeslideimage",
+]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--import-mode=importlib",
+]
+filterwarnings = ["error"]
+markers = [
+  "slide: requires openslide and a whole-slide image fixture",
+  "slow: takes more than a second",
+]
+
+[tool.coverage.run]
+source = ["wsi_data"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@overload",
+  "\\.\\.\\.",
+]
