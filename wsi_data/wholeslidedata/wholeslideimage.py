@@ -75,47 +75,58 @@ class MultiResWholeSlideImage(WholeSlideImage):
     def create_mask_sampler(self):
         self.mask_sampler = SegmentationPatchLabelSampler()
 
-    def get_tissue_mask(self, spacing=32, return_contours=True):
-        downsample = self.get_downsampling_from_spacing(spacing)
-        thumbnail, downsample_factor = read_scaled_region(
-            self.path, downsample=downsample
-        )
-        mask = detect_tissue(thumbnail).astype(np.uint8)
+    def get_tissue_mask(
+        self,
+        method: str = "he_preprocessing",
+        spacing: Union[float, None] = None,
+        segmentor: Union[CNNTissueSegmentor, None] = None,
+        return_contours: bool = True,
+    ):
+        """Detect tissue in a downsampled thumbnail of the slide.
+
+        Args:
+            method: ``"he_preprocessing"`` (default) for optical-density-based
+                tissue detection, or ``"cnn"`` for a pretrained CNN segmentor.
+            spacing: Target spacing (microns per pixel) for the thumbnail.
+                Defaults to 32 for ``"he_preprocessing"``, or 8 for ``"cnn"``
+                (the resolution the CNN checkpoint expects).
+            segmentor: Required when ``method="cnn"``: a
+                :class:`~wsi_data.tissue_segmentation.CNNTissueSegmentor`,
+                instantiated once (it holds a loaded model) and reused across slides.
+            return_contours: If True, also return the mask's external contours.
+
+        Returns:
+            ``(mask, downsample)`` or ``(mask, contours, downsample)``, where
+            ``mask`` is a ``uint8`` array with tissue pixels set to ``1``.
+        """
+        assert method in (
+            "he_preprocessing",
+            "cnn",
+        ), f"method must be 'he_preprocessing' or 'cnn', got {method!r}"
+
+        if method == "cnn":
+            assert (
+                segmentor is not None
+            ), "method='cnn' requires a `segmentor` (CNNTissueSegmentor instance)."
+            real_spacing = self.get_real_spacing(8 if spacing is None else spacing)
+            downsample_factor = self.get_downsampling_from_spacing(real_spacing)
+            thumbnail = self.get_slide(spacing=real_spacing)
+            mask = (segmentor.predict(thumbnail) > 0).astype(np.uint8)
+        else:
+            downsample = self.get_downsampling_from_spacing(
+                32 if spacing is None else spacing
+            )
+            thumbnail, downsample_factor = read_scaled_region(
+                self.path, downsample=downsample
+            )
+            mask = detect_tissue(thumbnail).astype(np.uint8)
+
         if not return_contours:
             return mask, downsample_factor
         contours, _ = cv2.findContours(
             mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         return mask, contours, downsample_factor
-
-    def get_tissue_mask_cnn(
-        self, segmentor: CNNTissueSegmentor, spacing=8, return_contours=True
-    ):
-        """Alternative to :meth:`get_tissue_mask` using a pretrained CNN.
-
-        Args:
-            segmentor: A :class:`~wsi_data.tissue_segmentation.CNNTissueSegmentor`,
-                instantiated once (it holds a loaded model) and reused across slides.
-            spacing: Target spacing (microns per pixel) for the thumbnail the
-                segmentor runs on. Defaults to the same spacing as
-                :meth:`get_thumbnail`.
-            return_contours: If True, also return the mask's external contours.
-
-        Returns:
-            ``(mask, downsample)`` or ``(mask, contours, downsample)``, where
-            ``mask`` is ``uint8`` with tissue pixels set to ``255`` (unlike
-            :meth:`get_tissue_mask`'s ``{0, 1}`` mask).
-        """
-        spacing = self.get_real_spacing(spacing)
-        downsample = self.get_downsampling_from_spacing(spacing)
-        thumbnail = self.get_slide(spacing=spacing)
-        mask = segmentor.predict(thumbnail)
-        if not return_contours:
-            return mask, downsample
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        return mask, contours, downsample
 
     def get_thumbnail(self, spacing=8):
         spacing = self.get_real_spacing(spacing)
