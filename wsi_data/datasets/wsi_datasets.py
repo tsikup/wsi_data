@@ -15,8 +15,9 @@ from wsi_data.wholeslidedata.wholeslideimage import (
     MyWholeSlideImage,
 )
 
-from he_preprocessing.filter.filter import apply_filters_to_image
-from he_preprocessing.utils.image import is_blurry, keep_tile, pad_image
+from he_preprocessing.pipeline.tile import TilePipelineConfig, preprocess_tile
+from he_preprocessing.tissue.detect import is_blurry, keep_tile
+from he_preprocessing.transform import pad_to_size
 
 
 class Single_WSI_Dataset(Dataset):
@@ -43,7 +44,7 @@ class Single_WSI_Dataset(Dataset):
         tile_size: int = 512,
         spacing: Union[Dict[str, float], float] = 0.5,
         transform: Union[T.Compose, None] = None,
-        filters2apply: Union[dict, None] = None,
+        filters2apply: Union[dict, TilePipelineConfig, None] = None,
         blurriness_threshold: Union[dict, int, None] = None,
         bluriness_mode: str = None,
         tissue_percentage: Union[dict, int, None] = None,
@@ -126,7 +127,7 @@ class Single_WSI_Dataset(Dataset):
 
     def _preprocess(self, patch, blurriness_threshold=None, tissue_percentage=None):
         """Apply preprocessing to the patch."""
-        patch = pad_image(
+        patch = pad_to_size(
             patch,
             self.tile_size,
             value=self.constant_pad_value,
@@ -137,7 +138,6 @@ class Single_WSI_Dataset(Dataset):
                 patch,
                 self.tile_size,
                 tissue_threshold=tissue_percentage,
-                pad=True,
             ):
                 return None
 
@@ -145,18 +145,17 @@ class Single_WSI_Dataset(Dataset):
             patch,
             threshold=blurriness_threshold,
             normalize=self.bluriness_mode == "normalized",
-            masked=self.bluriness_mode == "masked",
-        ):
+            tissue_only=self.bluriness_mode == "masked",
+        )[0]:
             return None
 
         if self.filters2apply is not None:
-            patch, _ = apply_filters_to_image(
-                patch,
-                roi_f=None,
-                slide=self.image_name,
-                filters2apply=self.filters2apply,
-                save=False,
+            config = (
+                self.filters2apply
+                if isinstance(self.filters2apply, TilePipelineConfig)
+                else TilePipelineConfig(**self.filters2apply)
             )
+            patch = preprocess_tile(patch, config)
 
         if self.transform is not None:
             patch = self.transform(patch)

@@ -8,7 +8,7 @@ from stainlib.augmentation.augmenter import HedColorAugmenter
 from stainlib.augmentation.augmenter import StainAugmentor as StainlibStainAugmentor
 from wsi_data.utils import to_tuple
 
-from he_preprocessing.utils.image import replace_pixels
+from he_preprocessing.transform import replace_color
 
 
 def get_augmentor(
@@ -155,7 +155,7 @@ class ReplaceBackgroundColor(ImageOnlyTransform):
 
     def apply(self, img, **params):
         return np.array(
-            replace_pixels(img, old_color=self.old_color, new_color=self.new_color)
+            replace_color(img, old_color=self.old_color, new_color=self.new_color)
         ).astype(np.uint8)
 
 
